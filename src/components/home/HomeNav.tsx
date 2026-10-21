@@ -19,6 +19,7 @@ export default function HomeNav() {
         <ul className="links">
           <li><a href="/?panel=about" id="infoBtn">{segments([["Abo", -1], ["ut", 0]])}</a></li>
           <li><a href="/?panel=agenda" id="agendaBtn">{segments([["Mee", -2], ["tin", -1], ["g", 0], ["\u00a0age", 1], ["nda", 2]])}</a></li>
+          <li><a href="/build-a-poster">Build a poster</a></li>
           <li><a href="/?panel=demo-signup" id="signupBtn">{segments([["Dem", -1], ["o\u00a0", 0], ["signup", 1]])}</a></li>
           <li><a href="https://www.instagram.com/creativecodingnyc/" target="_blank" rel="noopener noreferrer">{segments([["Ins", -1], ["tag", 0], ["ram", 1]])}</a></li>
           <li><a href="/?panel=calendar" id="calendarBtn">{segments([["Cal", -1], ["end", 0], ["ar", 1]])}</a></li>

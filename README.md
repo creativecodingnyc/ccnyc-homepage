@@ -53,3 +53,32 @@ When the Apps Script changes later, create a new deployment version from
 | `npm run dev` | Start the local development server |
 | `npm run build` | Create an optimized Next.js production build |
 | `npm run start` | Run the production build locally |
+
+## Poster direction
+
+The poster builder is intended to replace the weekly request for a community
+artist's poster. The target output is a 10-20 second animated poster containing
+CCNYC, date, location, and 6-8pm. Generative backgrounds should vary each week
+while typography, information hierarchy, and brand rules stay cohesive.
+
+The rebuilt `/build-a-poster` studio includes twelve seeded animation families, three mark constructions per
+family, seed comparison previews, twelve palettes and custom HEX color roles. Exact
+geometry, warp/noise, texture, rotation and independent travel/deformation controls, Flow/Reverse/Ping-pong motion behavior combine with a
+seed comparisons, locked randomization, local saves and versioned JSON import/
+export. It also includes play/pause and scrubbing, editable event
+details, 4:5 and 9:16 formats, and 10/15/20-second loops. Initial variations derive
+from the event date. Download a PNG of the current frame or record a complete
+1080px-wide video. The export button names the actual browser-supported MP4 or
+WebM format; recording happens in real time and cancels if the tab is hidden.
+
+Run the poster regression suites with Node.js 22.18+ or 24+:
+
+```sh
+node --test tests/latest-painter.test.mjs tests/poster-renderer.test.mjs
+```
+
+See `docs/custom-art.md` for the renderer API and export contract and
+`docs/poster-animation-research.md` for the research behind the pattern choices.
+
+
+The Custom code workspace supports isolated WebGL1 GLSL fragment shaders and real p5.js instance sketches inside the poster frame, including PNG/video export. Open `/build-a-poster#code-controls`. See `docs/custom-art.md` for the frame API, source persistence and limitations; `docs/studio-review.md` records the complete family/control audit and CCNYC UI branding changes.

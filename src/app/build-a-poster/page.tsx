@@ -3,6 +3,8 @@ import PosterBuilder from "@/components/poster-builder/PosterBuilder";
 import { getNextPosterEvent } from "@/lib/sheets";
 import "./build-a-poster.css";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Build a Poster — CCNYC",
   description: "Make a poster for an upcoming Creative Coding NYC meetup.",
