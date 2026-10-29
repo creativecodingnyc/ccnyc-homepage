@@ -63,7 +63,7 @@
   background-color: #73797c;
   background-image:
     linear-gradient(rgb(115 121 124 / 78%), rgb(115 121 124 / 78%)),
-    url("/acrylic-panel-texture.png");
+    url("/acrylic-panel-texture.webp");
   background-blend-mode: normal;
   background-position: center, -250px -82px;
   background-size: auto, 700px 500px;

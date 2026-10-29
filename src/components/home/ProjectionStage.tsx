@@ -7,11 +7,7 @@ export default function ProjectionStage({ signupEndpoint }: ProjectionStageProps
     <section id="board" aria-label="About Creative Coding NYC">
       <div className="board">
         <div className="col stage">
-          <figure
-            className="blk screen"
-            id="shot"
-            aria-label="Photos from Creative Coding NYC meetups"
-          >
+          <div className="blk screen" id="shot">
             <img alt="" id="shotA" />
             <img alt="" id="shotB" />
 
@@ -19,12 +15,11 @@ export default function ProjectionStage({ signupEndpoint }: ProjectionStageProps
               className="panel intro"
               id="shotInfo"
               aria-hidden="true"
-              contentEditable
-              suppressContentEditableWarning
-              role="textbox"
-              aria-multiline="true"
-              spellCheck
+              aria-labelledby="aboutTitle"
+              inert
+              tabIndex={0}
             >
+              <h2 className="sr-only" id="aboutTitle">About</h2>
               <p>
                 Creative Coding NYC is a weekly community meetup for anyone
                 interested in bringing their creative ideas to life using code.
@@ -44,8 +39,8 @@ export default function ProjectionStage({ signupEndpoint }: ProjectionStageProps
               </ul>
             </div>
 
-            <div className="panel agenda-box" id="shotAgenda" aria-hidden="true">
-              <p className="title">Tuesday meeting agenda · 6–8 PM</p>
+            <div className="panel agenda-box" id="shotAgenda" aria-hidden="true" aria-labelledby="agendaTitle" inert tabIndex={0}>
+              <h2 className="title" id="agendaTitle">Tuesday meeting agenda · 6–8 PM</h2>
               <div className="schedule">
                 <div><time>6:00–7:20</time><p><strong>Chill, code, collaborate</strong></p></div>
                 <div><time>7:20–7:30</time><p><strong>Announcements</strong></p></div>
@@ -66,12 +61,15 @@ export default function ProjectionStage({ signupEndpoint }: ProjectionStageProps
               className="panel signup-box"
               id="shotSignup"
               aria-hidden="true"
+              aria-labelledby="signupTitle"
+              inert
+              tabIndex={0}
               data-signup-endpoint={signupEndpoint}
             >
               <div className="head">
                 <div>
-                  <p className="title">Demo signup</p>
-                  <p className="status" id="projectorSignupStatus">Loading lineup…</p>
+                  <h2 className="title" id="signupTitle">Demo signup</h2>
+                  <p className="status" id="projectorSignupStatus" role="status">Loading lineup…</p>
                 </div>
               </div>
               <form className="form" id="signupForm">
@@ -104,7 +102,7 @@ export default function ProjectionStage({ signupEndpoint }: ProjectionStageProps
               </form>
               <ol className="lineup" id="projectorLineup" aria-label="Demo signup lineup" />
             </div>
-          </figure>
+          </div>
         </div>
 
         <div className="blk pier-block">

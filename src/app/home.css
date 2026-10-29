@@ -1,5 +1,5 @@
-@font-face{font-family:Tanker;src:url("/fonts/Tanker-Regular.otf") format("opentype");font-display:swap}
-@font-face{font-family:Karla;src:url("/fonts/Karla-VariableFont_wght.ttf") format("truetype");font-display:swap}
+@font-face{font-family:Tanker;src:url("/fonts/Tanker-Regular.woff2") format("woff2");font-display:swap}
+@font-face{font-family:Karla;src:url("/fonts/Karla-VariableFont_wght.woff2") format("woff2");font-display:swap}
 html,body{margin:0;height:100%;background:#191919;overflow:hidden;display:grid;place-items:center}
 canvas{display:block;position:fixed;inset:0;z-index:3;pointer-events:none}
 /* the meetup info, revealed under the wordmark when the animation ends */
@@ -48,8 +48,8 @@ canvas{display:block;position:fixed;inset:0;z-index:3;pointer-events:none}
 .b-meet.all ol{max-height:34vh;overflow:auto;scrollbar-width:thin;padding-right:8px}
 .b-meet.all{background:rgba(25,25,25,.92);box-shadow:0 0 0 14px rgba(25,25,25,.92)}
 .see-all{margin-top:12px;font:inherit;color:var(--ink);background:none;border:0;padding:0;cursor:pointer}
-.see-all::before{content:"<";color:var(--muted);padding-right:.15em;display:inline-block;transition:transform .3s cubic-bezier(.2,.7,.2,1)}
-.see-all::after{content:"/>";color:var(--muted);padding-left:.6em;display:inline-block;transition:transform .3s cubic-bezier(.2,.7,.2,1)}
+.see-all::before{content:"<";content:"<" / "";color:var(--muted);padding-right:.15em;display:inline-block;transition:transform .3s cubic-bezier(.2,.7,.2,1)}
+.see-all::after{content:"/>";content:"/>" / "";color:var(--muted);padding-left:.6em;display:inline-block;transition:transform .3s cubic-bezier(.2,.7,.2,1)}
 .see-all:hover::before{transform:translateX(-4px)}.see-all:hover::after{transform:translateX(4px)}
 .see-all:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 /* tall phone screens: text and the next dates first, the code and sketch to the right */
@@ -82,8 +82,8 @@ canvas{display:block;position:fixed;inset:0;z-index:3;pointer-events:none}
 .webgl-fallback .screen{animation:none;opacity:1!important}
 /* top left: MENU, then Instagram and Discord; the menu opens the links */
 .topbar{position:fixed;left:4vh;top:3.5vh;z-index:6;display:flex;align-items:flex-start;gap:18px;color:var(--ink);font:13px/1.6 var(--mono);
-  opacity:0;transition:opacity .8s ease .5s;pointer-events:none}
-.topbar.on{opacity:1;pointer-events:auto}
+  opacity:0;visibility:hidden;transition:opacity .8s ease .5s;pointer-events:none}
+.topbar.on{opacity:1;visibility:visible;pointer-events:auto}
 .menu-btn{text-decoration:none;font:400 14px/1 var(--mono);letter-spacing:.04em;color:var(--ink);background:none;border:0;padding:4px 0;cursor:pointer}
 .menu-btn .sl{color:var(--muted);margin-right:.5em;display:inline-block;transition:transform .3s cubic-bezier(.2,.7,.2,1)}
 .menu-btn:hover .sl,.menu-btn[aria-expanded="true"] .sl{transform:translateX(-4px);color:var(--ink)}
@@ -109,14 +109,14 @@ canvas{display:block;position:fixed;inset:0;z-index:3;pointer-events:none}
 .screen img.on{opacity:.60}
 .panel{position:absolute;inset:0;z-index:1;box-sizing:border-box;padding:18px 20px;overflow:auto;scrollbar-width:thin;background:transparent;color:var(--ink);font:11px/1.45 var(--mono);opacity:0;pointer-events:none;transition:opacity .35s ease}
 .panel p{margin:0 0 12px}.panel ul{margin:0;padding-left:18px}.panel li{margin:0 0 5px}.title{font-weight:500;text-transform:uppercase;letter-spacing:.08em}
-.intro{font-family:"Red Hat Mono",monospace;font-size:16px;line-height:1.55;letter-spacing:-.015em;caret-color:var(--ink);cursor:text}.intro:focus{outline:1px solid rgba(231,229,222,.28);outline-offset:-1px}.intro ul{padding-left:18px;list-style:disc}.subtitle{margin-top:20px;font-family:"Karla",sans-serif;font-size:19px;font-weight:500;font-style:italic;letter-spacing:-.01em}
+.intro{font-family:"Red Hat Mono",monospace;font-size:16px;line-height:1.55;letter-spacing:-.015em}.panel:focus{outline:none}.panel:focus-visible{outline:1px solid rgba(231,229,222,.28);outline-offset:-1px}.intro ul{padding-left:18px;list-style:disc}.subtitle{margin-top:20px;font-family:"Karla",sans-serif;font-size:19px;font-weight:500;font-style:italic;letter-spacing:-.01em}
 .shot-panel-link{display:inline-block;margin-top:10px;padding:8px 10px;border:1px solid currentColor;color:var(--ink);text-decoration:none;text-transform:uppercase;letter-spacing:.06em}
 .shot-panel-link:hover{background:var(--ink);color:#191919}
 .agenda-box{font-size:17px;line-height:1.5}.agenda-box>.title{font-size:20px}.schedule{display:grid;gap:14px;margin:10px 0 18px}.schedule div{display:grid;grid-template-columns:7.5em 1fr;gap:12px}.schedule time{color:var(--muted)}.schedule strong{font-weight:500}.schedule span{display:block;color:var(--muted)}
 .signup-box{font-size:14px;line-height:1.5}.signup-box .title{font-size:18px}
 .calendar-panel{font-family:"Red Hat Mono",monospace;font-size:12px;line-height:1.4}.calendar-panel .calendar-title{margin:0 0 18px;font:500 italic 22px/1.15 "Karla",sans-serif}.calendar-table{width:100%;border-collapse:collapse}.calendar-table th,.calendar-table td{padding:8px 10px 8px 0;border-bottom:1px solid rgba(231,229,222,.18);text-align:left;vertical-align:top}.calendar-table th{font-family:"Karla",sans-serif;font-size:13px;font-weight:500}.calendar-table th:first-child,.calendar-table td:first-child{white-space:nowrap}.calendar-panel a{display:inline-block;margin-top:20px;color:var(--ink);text-underline-offset:4px}
 .head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:10px}.status{color:var(--muted)}
-.form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:7px;margin:10px 0 14px}.form input,.form button{min-width:0;box-sizing:border-box;border:1px solid rgba(231,229,222,.35);border-radius:0;background:rgba(25,25,25,.45);color:var(--ink);font:12px/1.2 var(--mono);padding:8px}.form input::placeholder{color:var(--muted)}.form button{cursor:pointer;text-transform:uppercase}.form button:hover{background:var(--ink);color:#191919}.form :disabled{opacity:.45;cursor:not-allowed}
+.form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:7px;margin:10px 0 14px}.form input,.form button{min-width:0;box-sizing:border-box;border:1px solid rgba(231,229,222,.42);border-radius:0;background:rgba(25,25,25,.45);color:var(--ink);font:12px/1.2 var(--mono);padding:8px}.form input::placeholder{color:var(--muted)}.form button{cursor:pointer;text-transform:uppercase}.form button:hover{background:var(--ink);color:#191919}.form :disabled{opacity:.45;cursor:not-allowed}.form input:focus-visible,.form button:focus-visible,.lineup a:focus-visible,.qr-link:focus-visible,.shot-panel-link:focus-visible,.calendar-panel a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .qr-link{display:flex;flex-direction:column;align-items:center;gap:12px;margin-top:20px;padding-top:14px;border-top:1px solid rgba(231,229,222,.2);color:inherit;font-size:17px;line-height:1.2;text-align:center;text-decoration:none;text-transform:uppercase;letter-spacing:.06em}.screen.agenda .qr-link img{position:static!important;width:140px!important;height:140px!important;object-fit:contain!important;filter:none!important;opacity:1!important;flex:0 0 auto}
 .lineup{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:3px}.lineup li{display:grid;grid-template-columns:2em minmax(0,1fr) auto;gap:8px;align-items:baseline;margin:0}.lineup .position{color:var(--muted)}.lineup .available{color:var(--muted)}.lineup a{color:var(--ink);text-decoration:none;text-align:right}
 .screen.about,.screen.agenda,.screen.signup,.screen.calendar{aspect-ratio:auto;height:min(60vh,520px);background:transparent;box-shadow:none;animation:none}
@@ -128,13 +128,13 @@ canvas{display:block;position:fixed;inset:0;z-index:3;pointer-events:none}
 .screen::before{content:"";position:absolute;inset:0;z-index:1;background-image:radial-gradient(rgba(255,255,255,.13) .45px,transparent .65px);background-size:3px 3px;mix-blend-mode:screen;opacity:.18;pointer-events:none}
 .screen::after{content:"";position:absolute;inset:0;z-index:2;background:radial-gradient(ellipse at 52% 48%,rgba(255,248,220,.08) 0 38%,rgba(30,24,16,.14) 75%,rgba(10,8,5,.30) 100%);box-shadow:inset 0 0 22px rgba(255,244,210,.08);pointer-events:none}
 #beam{position:fixed;inset:0;z-index:1;pointer-events:none;width:100%;height:100%}
-.pier-pin{position:fixed;z-index:5;width:22px;height:28px;padding:0;border:0;background:transparent;color:var(--ink);opacity:0;pointer-events:none;transform:translate(-50%,-20px);transition:opacity .35s ease;cursor:help}
+.pier-pin{position:fixed;z-index:5;width:24px;height:28px;padding:0;border:0;background:transparent;color:var(--ink);opacity:0;pointer-events:none;transform:translate(-50%,-20px);transition:opacity .35s ease;cursor:help}
 .pier-pin.on{opacity:1;pointer-events:auto}
-.pier-pin::before{content:"";position:absolute;left:4px;top:3px;width:14px;height:14px;border-radius:50% 50% 50% 0;background:#fff;transform:rotate(-45deg)}
-.pier-pin::after{content:"";position:absolute;left:9px;top:8px;width:4px;height:4px;border-radius:50%;background:#191919}
+.pier-pin::before{content:"";position:absolute;left:5px;top:3px;width:14px;height:14px;border-radius:50% 50% 50% 0;background:#fff;transform:rotate(-45deg)}
+.pier-pin::after{content:"";position:absolute;left:10px;top:8px;width:4px;height:4px;border-radius:50%;background:#191919}
 .pier-tip{position:absolute;left:50%;bottom:34px;width:max-content;max-width:min(250px,70vw);padding:7px 9px;background:rgba(25,25,25,.96);box-shadow:0 0 0 1px var(--rule);color:var(--ink);font:11px/1.4 var(--mono);letter-spacing:.02em;text-align:left;opacity:0;transform:translate(-50%,5px);transition:opacity .2s ease,transform .2s ease;pointer-events:none}
 .pier-pin:hover .pier-tip,.pier-pin:focus-visible .pier-tip{opacity:1;transform:translate(-50%,0)}
-.pier-pin:focus-visible{outline:none}
+.pier-pin:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 @media (max-width:768px){
   .topbar{left:2.5vh;right:2.5vh;top:calc(2.5vh + env(safe-area-inset-top,0px));gap:20px;align-items:center}
   .topbar>#calendarNavBtn{display:none}
@@ -169,8 +169,8 @@ canvas{display:block;position:fixed;inset:0;z-index:3;pointer-events:none}
 .links a{color:var(--ink);text-decoration:none}
 /* written as code tags: <Discord /> */
 .links a::before,.links a::after{display:inline-block;color:var(--muted);transition:transform .3s cubic-bezier(.2,.7,.2,1),color .2s}
-.links a::before{content:"<";padding-right:.15em}
-.links a::after{content:"/>";padding-left:.6em}
+.links a::before{content:"<";content:"<" / "";padding-right:.15em}
+.links a::after{content:"/>";content:"/>" / "";padding-left:.6em}
 .links a:hover::before,.links a:focus-visible::before{transform:translateX(-4px);color:var(--ink)}
 .links a:hover::after,.links a:focus-visible::after{transform:translateX(4px);color:var(--ink)}
 .links a:hover{color:#fff}
@@ -197,3 +197,12 @@ ol li.next span::before{content:"Next · ";color:var(--muted)}
 .more{margin:10px 0 0;color:var(--muted);font-size:12px}
 .year{grid-column:1/-1;color:var(--muted);font-size:12px;letter-spacing:.08em;padding-top:14px}
 @media (max-width:480px){ol li{grid-template-columns:6.5em 1fr;gap:10px}}
+/* panel titles are headings now; they keep the look they had as paragraphs */
+:where(.panel) h2{font:inherit;margin:0 0 12px;color:inherit;letter-spacing:normal}
+/* for screen readers only */
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* the first stop for the keyboard while the intro plays; out of sight until focused */
+.skip-intro{position:fixed;left:4vh;top:3.5vh;z-index:10;padding:6px 10px;border:0;background:var(--bg);color:var(--ink);font:13px/1.6 var(--mono);cursor:pointer;
+  transform:translateY(-200%);opacity:0}
+.skip-intro:focus-visible{transform:none;opacity:1;outline:2px solid var(--ink);outline-offset:2px}
+.webgl-fallback .skip-intro{display:none}

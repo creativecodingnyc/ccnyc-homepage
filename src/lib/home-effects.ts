@@ -148,6 +148,21 @@ varying vec2 vUv;
 void main(){ vUv = aTexCoord; gl_Position = vec4(aPosition.xy * vec2(2, -2) + vec2(-1, 1), 0, 1); }`;
 
 let flown = false, allReveal = false, wordG, wordSh, lensSh, wordFaces = [], font = 'Impact', t = 0, clock = 0;
+// with reduced motion the intro is not played: the page opens on its finished state
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// a moment past the first WELCOME roll, so the wordmark rests on CCNYC and the map has tipped over
+const SETTLED = END + 1.2 + 4.7;
+if (REDUCED){ t = END; clock = SETTLED; }
+
+// the intro can be skipped from the keyboard (the first focusable thing on the page)
+const skipBtn = document.getElementById('skipIntro');
+const hideSkip = () => {
+  if (!skipBtn || skipBtn.hidden) return;
+  const hadFocus = document.activeElement === skipBtn;
+  skipBtn.hidden = true;
+  if (hadFocus) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('menuBtn')?.focus()));
+};
+skipBtn?.addEventListener('click', () => { t = END; clock = Math.max(clock, SETTLED); });
 
 const activateStaticFallback = () => {
   if (document.documentElement.classList.contains('webgl-fallback')) return;
@@ -159,6 +174,7 @@ const activateStaticFallback = () => {
   document.getElementById('board')?.classList.add('on');
   document.getElementById('topbar')?.classList.add('on');
   document.getElementById('sub')?.classList.add('on');
+  hideSkip();
   document.querySelectorAll<HTMLElement>('.ph').forEach(photo => photo.classList.add('out', 'landed'));
   const shot = document.getElementById('shot');
   if (shot) shot.style.opacity = '1';
@@ -267,12 +283,18 @@ function setup(){
   wordSh = wordG.createShader(VERT, BAR);
   lensSh = createShader(FLAT, LENS_FS);
   paint();
-  document.fonts.load('400px Tanker').then(() => { font = 'Tanker'; paint(); });
+  measureLayout();
+  document.fonts.load('400px Tanker').then(() => { font = 'Tanker'; paint(); painted++; });
 }
+
+// read from the DOM once per resize, not every frame
+let menuTop = 0, painted = 0, lastKey = '';
+function measureLayout(){ menuTop = document.getElementById('menuBtn').getBoundingClientRect().top; }
 
 function windowResized(){
   const [w, h] = size();
   resizeCanvas(w, h); wordG.resizeCanvas(w, h);
+  measureLayout();
 }
 
 function draw(){
@@ -284,7 +306,7 @@ function draw(){
   // once it has landed, the wordmark rolls over to itself now and then
   let prog = turning(2.0, 3.4), step = t >= 3.4 ? 1 : 0;
   const idle = clock - (END + 1.2);
-  if (idle > 0){
+  if (idle > 0 && !REDUCED){
     if (!allReveal){ allReveal = true; wordFaces.forEach((g, i) => letter(g, i % 2 ? REVEAL : 'WELCOME')); }
     // every 9 seconds: roll to WELCOME, hold a moment, roll back to CCNYC
     const k = Math.floor(idle / 9), ph = idle % 9, roll = 1.4, hold = 1.8;
@@ -293,6 +315,11 @@ function draw(){
     else if (ph < 2 * roll + hold){ prog = (ph - roll - hold) / roll; step = 2 + 2 * k; }
     else { prog = 0; step = 3 + 2 * k; }
   }
+  // once the intro has played, the frame only changes during a roll: skip the rest
+  // (p5 keeps the drawing buffer, so the last frame stays on screen)
+  const key = t >= END && prog === 0 ? [step, width, height, menuTop, painted, allReveal].join() : '';
+  if (key && key === lastKey) return;
+  lastKey = key;
   bar(wordG, wordSh, wordFaces, prog, step, 1);
 
   clear();
@@ -320,12 +347,11 @@ function draw(){
   window.lensState = [cols, bulge, gap, keepRow, at(6.3, 7.1), barW(), width, height];   // so the map can come in cell by cell where the copies were
   lensSh.setUniform('grow', cubic(at(6.3, 7.3)));
   lensSh.setUniform('sqFade', cubic(clamp01((clock - 7.25) / 0.7)));
-  const menuTop = document.getElementById('menuBtn').getBoundingClientRect().top;
   lensSh.setUniform('bigY', -height / 2 + menuTop + barH() * 0.16);
   // the collage starts just under the finished wordmark
   const board = document.getElementById('board');
   board.style.setProperty('--top', Math.round(menuTop + barH() * 0.32 + 24) + 'px');
-  if (t >= 7.15 && !flown){ flown = true; flyOut(); }
+  if (t >= 7.15 && !flown){ flown = true; flyOut(); hideSkip(); }
   const sub = document.getElementById('sub');
   sub.style.setProperty('--sub', Math.round(menuTop + barH() * 0.32 + 16) + 'px');
   sub.classList.toggle('on', flown);
@@ -496,6 +522,7 @@ function standIn(seed){
   function frame(now){
     requestAnimationFrame(frame);
     if (!document.getElementById('board').classList.contains('on')) return;
+    if (!cv.clientWidth) return;                  // the sketch is hidden for now: draw nothing
     if (now - last < 110) return;                 // boil the lines at ~9 fps, like a sketch
     last = now;
     const d = Math.min(2, devicePixelRatio || 1), w = cv.clientWidth, h = cv.clientHeight;
@@ -551,13 +578,16 @@ function standIn(seed){
     ty = -(e.clientY / innerHeight - 0.5) * innerHeight * 0.12;
   });
   document.addEventListener('pointerleave', () => { tx = ty = 0; });
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  let els = null;
   (function step(){
     requestAnimationFrame(step);
-    if (!flown || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!flown || reduce.matches) return;
+    if (Math.abs(tx - x) < 0.05 && Math.abs(ty - y) < 0.05) return;   // at rest: nothing to move
     x += (tx - x) * 0.06; y += (ty - y) * 0.06;
     window.drift = [x, y];
-    [document.querySelector('.board'), document.querySelector('canvas.p5Canvas'), document.getElementById('sub')]
-      .forEach(el => el && (el.style.translate = `${x.toFixed(1)}px ${y.toFixed(1)}px`));
+    els ??= [document.querySelector('.board'), document.querySelector('canvas.p5Canvas'), document.getElementById('sub')];
+    els.forEach(el => el && (el.style.translate = `${x.toFixed(1)}px ${y.toFixed(1)}px`));
   })();
 })();
 
@@ -632,7 +662,7 @@ function standIn(seed){
   // the page: paper, grain, the picture tiling in, and the cursor's wet trail
   const compP = program('attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }', `
 precision highp float;
-uniform sampler2D map, wet;
+uniform sampler2D map, wet, grainT;
 uniform vec2 res, off, lres;
 uniform float time, reveal, pad, cols, bulge, gap, keepRow, solo, barW;
 float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -661,9 +691,14 @@ void main(){
   float tile = step(0.1, go) * step(abs(l.x), hs.x) * step(abs(l.y), hs.y);
   vec2 gridPos = pd / cs;
   float spreadDist = length((gridPos - vec2(0.0, keepRow + 0.5)) * vec2(1.0, 0.8)) / 9.0;
-  float dissolve = solo * 1.8 - spreadDist - fbm(q * 7.0 + time * 0.025) * 0.24;
-  float shown = max(smoothstep(-0.08, 0.24, dissolve), smoothstep(0.76, 1.0, solo) * reveal);
-  float grain = (h(gl_FragCoord.xy) - 0.5) * 0.018 + (fbm(q * 40.0) - 0.5) * 0.02;
+  // once the copies have cleared the map is fully shown, and the dissolve's noise is not needed
+  float shown = 1.0;
+  if (solo < 1.0 || reveal < 0.5){
+    float dissolve = solo * 1.8 - spreadDist - fbm(q * 7.0 + time * 0.025) * 0.24;
+    shown = max(smoothstep(-0.08, 0.24, dissolve), smoothstep(0.76, 1.0, solo) * reveal);
+  }
+  // the paper grain never moves, so it is drawn once per resize (see grainP)
+  float grain = (texture2D(grainT, gl_FragCoord.xy / res).r - 0.5) / 10.0;
   // White cross-band scan lines live in the paper layer, behind all map ink.
   vec2 scanUv = uv + off / (res * pad) * 0.18;
   float xBand = 11.0 * abs(fract(scanUv.x * scanUv.x * 850.0 + time * 0.22));
@@ -678,20 +713,38 @@ void main(){
   col += vec3(0.75) * scan * 0.34;
   // Expanding elliptical wakes break across a slower, softly drifting shimmer.
   // The Hudson mask keeps these rings out of the streets and buildings.
-  vec2 wakeA = (q - vec2(0.25, 0.60)) * vec2(1.0, 1.75);
-  vec2 wakeB = (q - vec2(0.40, 0.36)) * vec2(1.0, 1.55);
-  float ringA = pow(max(0.0, sin(length(wakeA) * 82.0 - time * 1.15)), 24.0);
-  float ringB = pow(max(0.0, sin(length(wakeB) * 68.0 - time * 0.86 + 2.4)), 28.0);
-  float brokenA = smoothstep(0.38, 0.76, fbm(q * 13.0 + vec2(time * 0.07, -time * 0.04)));
-  float brokenB = smoothstep(0.44, 0.80, fbm(q * 17.0 + vec2(-time * 0.05, time * 0.06) + 8.0));
-  float flowPhase = uv.y * res.y / 15.0 + fbm(q * 6.0 + vec2(time * 0.04, 0.0)) * 4.5 - time * 0.72;
-  float flow = pow(max(0.0, sin(flowPhase)), 20.0);
-  flow *= smoothstep(0.48, 0.76, fbm(q * 20.0 + vec2(time * 0.08, -time * 0.03)));
-  float waterLight = ringA * brokenA * 0.28 + ringB * brokenB * 0.22 + flow * 0.18;
-  col += vec3(0.34, 0.33, 0.30) * waterLight * hudson * shown;
+  // Only the river pays for them.
+  if (hudson * shown > 0.0){
+    vec2 wakeA = (q - vec2(0.25, 0.60)) * vec2(1.0, 1.75);
+    vec2 wakeB = (q - vec2(0.40, 0.36)) * vec2(1.0, 1.55);
+    float ringA = pow(max(0.0, sin(length(wakeA) * 82.0 - time * 1.15)), 24.0);
+    float ringB = pow(max(0.0, sin(length(wakeB) * 68.0 - time * 0.86 + 2.4)), 28.0);
+    float brokenA = smoothstep(0.38, 0.76, fbm(q * 13.0 + vec2(time * 0.07, -time * 0.04)));
+    float brokenB = smoothstep(0.44, 0.80, fbm(q * 17.0 + vec2(-time * 0.05, time * 0.06) + 8.0));
+    float flowPhase = uv.y * res.y / 15.0 + fbm(q * 6.0 + vec2(time * 0.04, 0.0)) * 4.5 - time * 0.72;
+    float flow = pow(max(0.0, sin(flowPhase)), 20.0);
+    flow *= smoothstep(0.48, 0.76, fbm(q * 20.0 + vec2(time * 0.08, -time * 0.03)));
+    float waterLight = ringA * brokenA * 0.28 + ringB * brokenB * 0.22 + flow * 0.18;
+    col += vec3(0.34, 0.33, 0.30) * waterLight * hudson * shown;
+  }
   col += vec3(0.07, 0.07, 0.065) * w * shown;
   col = mix(col, vec3(0.70, 0.69, 0.66), min(1.0, ink) * 0.62 * shown);
   gl_FragColor = vec4(col, 1.0);
+}`);
+
+  // the paper grain, stored as 0.5 + grain * 10 so 8 bits keep its detail
+  const grainP = program('attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }', `
+precision highp float;
+uniform vec2 res;
+float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+float fbm(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++){ s += a * n(p); p = p * 2.03 + 7.1; a *= 0.5; } return s; }
+void main(){
+  vec2 uv = gl_FragCoord.xy / res; uv.y = 1.0 - uv.y;
+  vec2 q = uv * vec2(res.x / res.y, 1.0);
+  float grain = (h(gl_FragCoord.xy) - 0.5) * 0.018 + (fbm(q * 40.0) - 0.5) * 0.02;
+  gl_FragColor = vec4(vec3(0.5 + grain * 10.0), 1.0);
 }`);
 
   // ---- geometry, built from the footprints
@@ -783,8 +836,8 @@ void main(){
   const tex = (unit, mip) => { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
-  const sceneTex = tex(0), wetTex = tex(1), groundTex = tex(2);
-  const fbo = gl.createFramebuffer(), depth = gl.createRenderbuffer();
+  const sceneTex = tex(0), wetTex = tex(1), groundTex = tex(2), grainTex = tex(3);
+  const fbo = gl.createFramebuffer(), depth = gl.createRenderbuffer(), grainFbo = gl.createFramebuffer();
   let SW = 0, SH = 0, dirty = true;
 
   // ---- camera: looking straight down at first, then tipping over to look up the island
@@ -847,8 +900,8 @@ void main(){
   }
 
   // ---- the cursor wets the paper, which dries slowly
-  let mx = -1, my = -1, px = -1, py = -1;
-  addEventListener('pointermove', e => { mx = e.clientX; my = e.clientY; });
+  let mx = -1, my = -1, px = -1, py = -1, moved = -Infinity, wetDirty = true;
+  addEventListener('pointermove', e => { mx = e.clientX; my = e.clientY; moved = performance.now(); });
   function dab(){
     tg.globalCompositeOperation = 'destination-out'; tg.fillStyle = 'rgba(0,0,0,0.012)'; tg.fillRect(0, 0, T.width, T.height);
     if (mx < 0) return;
@@ -863,8 +916,8 @@ void main(){
     px = mx; py = my;
   }
 
+  let d = Math.min(1.5, devicePixelRatio || 1);
   function resize(){
-    const d = Math.min(1.5, devicePixelRatio || 1);
     cv.width = Math.round(innerWidth * d); cv.height = Math.round(innerHeight * d);
     SW = Math.round(cv.width * PAD); SH = Math.round(cv.height * PAD);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, sceneTex);
@@ -875,27 +928,61 @@ void main(){
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     T.width = Math.round(innerWidth / 4); T.height = Math.round(innerHeight / 4);
-    dirty = true;
+    // the paper grain, drawn once at this size
+    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, grainTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, cv.width, cv.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, grainFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, grainTex, 0);
+    gl.viewport(0, 0, cv.width, cv.height);
+    gl.useProgram(grainP); off();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf); attrib(grainP, 'p', 2, 2, 0);
+    gl.uniform2f(gl.getUniformLocation(grainP, 'res'), cv.width, cv.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    dirty = true; wetDirty = true;
   }
-  resize(); drawGround();
-  document.fonts.load('italic 20px "Cormorant Garamond"').then(drawGround).catch(() => {});
+  resize();
+  // the ground is drawn once its lettering has loaded; it is not on screen before ~6s anyway
+  let grounded = false;
+  const ground = () => { grounded = true; drawGround(); };
+  const late = setTimeout(ground, 2500);
+  document.fonts.load('italic 20px "Cormorant Garamond"').then(() => { clearTimeout(late); ground(); }, () => { if (!grounded) ground(); });
   let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(resize, 150); });
 
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let lastK = -1;
+  const locs = {}, U = name => locs[name] ??= gl.getUniformLocation(compP, name);
+  let lastK = -1, lastStill = '';
+  // a device that cannot keep up at high density drops to one pixel per CSS pixel, once
+  const gaps = []; let prev = 0;
   (function frame(now){
     requestAnimationFrame(frame);
+    if (d > 1 && clock > SETTLED && gaps.length < 120){
+      if (prev) gaps.push(now - prev);
+      if (gaps.length === 120 && gaps.sort((a, b) => a - b)[60] > 24){ d = 1; resize(); }
+    }
+    prev = now;
     // the map tiles in as the CCNYC copies clear, then tips over once the wordmark has landed
     const reveal = clock > 6.2 ? 1 : 0;
     const k = still ? 1 : ease((clock - 7.6) / 2.8);
-    if (k !== lastK || dirty){ scene(k); lastK = k; dirty = false; }
-    if (!still) dab();
+    const L = window.lensState || [8, 0, 0, 0, 0, 1, innerWidth, innerHeight];
+    const changed = k !== lastK || dirty;
+    if (changed){ scene(k); lastK = k; dirty = false; }
+    // still: nothing moves, so the picture is only redrawn when something about it changes
+    if (still){
+      const key = [changed, reveal, clock > 6.3, cv.width, cv.height, wetDirty].join();
+      if (!changed && !wetDirty && key === lastStill) return;
+      lastStill = key;
+    }
+    // the cursor's trail dries for a few seconds after it stops; after that there is nothing to upload
+    const wetting = !still && now - moved < 12000;
+    if (wetting) dab();
     gl.useProgram(compP); off();
     gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf); attrib(compP, 'p', 2, 2, 0);
-    const U = name => gl.getUniformLocation(compP, name);
-    gl.uniform1i(U('map'), 0); gl.uniform1i(U('wet'), 1);
+    gl.uniform1i(U('map'), 0); gl.uniform1i(U('wet'), 1); gl.uniform1i(U('grainT'), 3);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, sceneTex);
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, wetTex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, T);
+    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, grainTex);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, wetTex);
+    if (wetting || wetDirty){ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, T); wetDirty = false; }
     gl.viewport(0, 0, cv.width, cv.height);
     gl.uniform2f(U('res'), cv.width, cv.height);
     gl.uniform1f(U('pad'), PAD);
@@ -903,7 +990,6 @@ void main(){
     gl.uniform2f(U('off'), -dr[0] * 0.5 * s, -dr[1] * 0.5 * s);      // the map drifts at half the page's speed, so it sits further back
     gl.uniform1f(U('time'), still ? 0 : now / 1000);
     gl.uniform1f(U('reveal'), reveal);
-    const L = window.lensState || [8, 0, 0, 0, 0, 1, innerWidth, innerHeight];
     gl.uniform1f(U('cols'), L[0]); gl.uniform1f(U('bulge'), L[1]); gl.uniform1f(U('gap'), L[2]); gl.uniform1f(U('keepRow'), L[3]);
     gl.uniform1f(U('solo'), still ? (clock > 6.3 ? 1 : 0) : L[4]); gl.uniform1f(U('barW'), L[5]); gl.uniform2f(U('lres'), L[6], L[7]);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -924,28 +1010,33 @@ void main(){
   const shot = document.getElementById('shot');
   const calendar = document.createElement('div');
   calendar.className = 'panel calendar-panel'; calendar.id = 'shotCalendar'; calendar.setAttribute('aria-hidden', 'true');
-  calendar.innerHTML = `<p class="calendar-title">Upcoming meetups</p><table class="calendar-table"><thead><tr><th>Date</th><th>What</th><th>Time</th><th>Location</th></tr></thead><tbody>
-    <tr><td>10/13/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Brooklyn Public Library Central Library, Info Commons lab</td></tr>
-    <tr><td>10/20/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>TBD</td></tr>
-    <tr><td>10/27/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Daffodil classroom</td></tr>
-    <tr><td>11/3/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>TBD</td></tr>
-    <tr><td>11/10/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Oyster classroom</td></tr>
-    <tr><td>11/17/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>TBD</td></tr>
-    <tr><td>11/24/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Oyster classroom</td></tr>
-    <tr><td>12/1/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>TBD</td></tr>
-    <tr><td>12/8/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Seahorse classroom</td></tr>
-    <tr><td>12/15/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>TBD</td></tr>
-    <tr><td>12/22/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Seahorse classroom</td></tr>
-    <tr><td>12/29/26</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Seahorse classroom</td></tr>
-    <tr><td>1/5/27</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Seahorse classroom</td></tr>
-    <tr><td>1/12/27</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Seahorse classroom</td></tr>
-    <tr><td>1/19/27</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Oyster classroom</td></tr>
-    <tr><td>1/26/27</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Oyster classroom</td></tr>
-    <tr><td>2/2/27</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Seahorse classroom</td></tr>
-    <tr><td>2/9/27</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Seahorse classroom</td></tr>
-    <tr><td>2/16/27</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Oyster classroom</td></tr>
-    <tr><td>2/23/27</td><td>CCNYC meetup</td><td>6–8 PM</td><td>Pier 57, Seahorse classroom</td></tr>
-  </tbody></table><a href="https://calendar.google.com/calendar/u/0/newembed?src=af7c6ae752c79810e8eb38e75cdf47faed42d35a9a68372067572cad4a6ec400@group.calendar.google.com" target="_blank" rel="noopener">Open Google Calendar ↗</a>`;
+  calendar.setAttribute('aria-labelledby', 'calendarTitle'); calendar.inert = true; calendar.tabIndex = 0;
+  const MEETUPS = [
+    ['10/13/26', 'Brooklyn Public Library Central Library, Info Commons lab'],
+    ['10/20/26', 'TBD'],
+    ['10/27/26', 'Pier 57, Daffodil classroom'],
+    ['11/3/26', 'TBD'],
+    ['11/10/26', 'Pier 57, Oyster classroom'],
+    ['11/17/26', 'TBD'],
+    ['11/24/26', 'Pier 57, Oyster classroom'],
+    ['12/1/26', 'TBD'],
+    ['12/8/26', 'Pier 57, Seahorse classroom'],
+    ['12/15/26', 'TBD'],
+    ['12/22/26', 'Pier 57, Seahorse classroom'],
+    ['12/29/26', 'Pier 57, Seahorse classroom'],
+    ['1/5/27', 'Pier 57, Seahorse classroom'],
+    ['1/12/27', 'Pier 57, Seahorse classroom'],
+    ['1/19/27', 'Pier 57, Oyster classroom'],
+    ['1/26/27', 'Pier 57, Oyster classroom'],
+    ['2/2/27', 'Pier 57, Seahorse classroom'],
+    ['2/9/27', 'Pier 57, Seahorse classroom'],
+    ['2/16/27', 'Pier 57, Oyster classroom'],
+    ['2/23/27', 'Pier 57, Seahorse classroom']
+  ];
+  const iso = date => { const [m, d, y] = date.split('/'); return `20${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`; };
+  calendar.innerHTML = `<h2 class="calendar-title" id="calendarTitle">Upcoming meetups</h2><table class="calendar-table" aria-labelledby="calendarTitle"><thead><tr><th scope="col">Date</th><th scope="col">What</th><th scope="col">Time</th><th scope="col">Location</th></tr></thead><tbody>
+    ${MEETUPS.map(([date, place]) => `<tr><td><time datetime="${iso(date)}">${date}</time></td><td>CCNYC meetup</td><td>6–8 PM</td><td>${place}</td></tr>`).join('\n    ')}
+  </tbody></table><a href="https://calendar.google.com/calendar/u/0/newembed?src=af7c6ae752c79810e8eb38e75cdf47faed42d35a9a68372067572cad4a6ec400@group.calendar.google.com" target="_blank" rel="noopener">Open Google Calendar <span aria-hidden="true">↗</span><span class="sr-only">(opens in a new tab)</span></a>`;
   shot.append(calendar);
   const info = document.getElementById('shotInfo'), agenda = document.getElementById('shotAgenda'), signup = document.getElementById('shotSignup');
   const infoBtn = document.getElementById('infoBtn'), agendaBtn = document.getElementById('agendaBtn'), signupBtn = document.getElementById('signupBtn'), calendarBtn = document.getElementById('calendarBtn'), calendarNavBtn = document.getElementById('calendarNavBtn');
@@ -1041,18 +1132,23 @@ void main(){
   });
   renderLineup([]);
   const panelName = mode => mode === 'signup' ? 'demo-signup' : mode;
-  const showPanel = (mode, updateUrl = true) => {
+  const panels = [[info, 'about', infoBtn], [agenda, 'agenda', agendaBtn], [signup, 'signup', signupBtn], [calendar, 'calendar', calendarBtn]];
+  const showPanel = (mode, updateUrl = true, moveFocus = false) => {
     shot.classList.toggle('about', mode === 'about');
     shot.classList.toggle('agenda', mode === 'agenda');
     shot.classList.toggle('signup', mode === 'signup');
     shot.classList.toggle('calendar', mode === 'calendar');
     shot.closest('.stage').classList.toggle('info-open', Boolean(mode));
-    info.setAttribute('aria-hidden', String(mode !== 'about'));
-    agenda.setAttribute('aria-hidden', String(mode !== 'agenda'));
-    signup.setAttribute('aria-hidden', String(mode !== 'signup'));
-    calendar.setAttribute('aria-hidden', String(mode !== 'calendar'));
+    // closed panels are invisible, so they are taken out of the tab order too
+    for (const [panel, which, link] of panels){
+      panel.setAttribute('aria-hidden', String(mode !== which));
+      panel.inert = mode !== which;
+      if (mode === which) link.setAttribute('aria-current', 'true'); else link.removeAttribute('aria-current');
+    }
     if (mode === 'signup') loadLineup();
     if (mode) set(null, false);
+    // opened from the menu: take focus along to the panel, since the menu has closed under it
+    if (mode && moveFocus) panels.find(([, which]) => which === mode)[0].focus({ preventScroll: true });
     if (updateUrl) {
       const url = new URL(location.href);
       if (mode) url.searchParams.set('panel', panelName(mode));
@@ -1061,11 +1157,11 @@ void main(){
       history.pushState({ panel: panelName(mode) }, '', `${url.pathname}${url.search}`);
     }
   };
-  infoBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('about') ? null : 'about'); });
-  agendaBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('agenda') ? null : 'agenda'); });
-  signupBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('signup') ? null : 'signup'); });
-  calendarBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('calendar') ? null : 'calendar'); });
-  calendarNavBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('calendar') ? null : 'calendar'); });
+  infoBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('about') ? null : 'about', true, true); });
+  agendaBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('agenda') ? null : 'agenda', true, true); });
+  signupBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('signup') ? null : 'signup', true, true); });
+  calendarBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('calendar') ? null : 'calendar', true, true); });
+  calendarNavBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('calendar') ? null : 'calendar', true, true); });
   const showPanelFromLocation = () => {
     const requestedPanel = new URLSearchParams(location.search).get('panel');
     const mode = ({
@@ -1085,7 +1181,13 @@ void main(){
   addEventListener('popstate', showPanelFromLocation);
   showPanelFromLocation();
   addEventListener('click', () => set(null, false));
-  addEventListener('keydown', e => { if (e.key === 'Escape') set(null, false); });
+  addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const menu = document.getElementById('menuPanel');
+    const inMenu = menu.contains(document.activeElement);
+    set(null, false);
+    if (inMenu) document.getElementById('menuBtn').focus();   // focus would otherwise be lost with the menu
+  });
   new MutationObserver(() => bar.classList.toggle('on', document.getElementById('board').classList.contains('on')))
     .observe(document.getElementById('board'), { attributes: true, attributeFilter: ['class'] });
 })();
@@ -1094,40 +1196,51 @@ void main(){
 (() => {
   const cv = document.getElementById('beam'), g = cv.getContext('2d'), shot = document.getElementById('shot'), pin = document.getElementById('pierPin');
   const imgs = [document.getElementById('shotA'), document.getElementById('shotB')];
-  const srcs = ['/photos/IMG_7097.jpeg', '/photos/IMG_8211.jpg', '/photos/IMG_9926.jpeg'];
+  const srcs = ['/photos/IMG_7097.webp', '/photos/IMG_8211.webp', '/photos/IMG_9926.webp'];
   const show = next => {
     imgs.forEach(el => el.classList.toggle('on', el === next));
   };
   let n = 0, current = imgs[0];
   imgs[0].src = srcs[0]; imgs[0].classList.add('on');
   setInterval(() => {
-    if (!flown || shot.classList.contains('about') || shot.classList.contains('agenda') || shot.classList.contains('signup') || shot.classList.contains('calendar')) return;
+    if (REDUCED || !flown || shot.classList.contains('about') || shot.classList.contains('agenda') || shot.classList.contains('signup') || shot.classList.contains('calendar')) return;
     n = (n + 1) % srcs.length;
     const next = current === imgs[0] ? imgs[1] : imgs[0];
     next.onload = () => { next.onload = null; current = next; show(next); };
     next.onerror = () => { next.onerror = null; next.src = standIn(n); };
     next.src = srcs[n];
   }, 4200);
+  // The beam is nothing but soft blurred light, so it is drawn at half a pixel per CSS
+  // pixel and stretched to fit: canvas blur costs grow with the pixel count.
+  const SCALE = 0.5;
+  let lastBeam = '', opacity = '';
+  const setOpacity = o => { const v = String(o); if (v !== opacity){ opacity = v; shot.style.opacity = v; } };
+  const clearBeam = () => { if (lastBeam){ g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); lastBeam = ''; } };
   (function frame(){
     requestAnimationFrame(frame);
-    const d = Math.min(2, devicePixelRatio || 1), W = innerWidth, H = innerHeight;
-    if (cv.width !== Math.round(W * d) || cv.height !== Math.round(H * d)){ cv.width = Math.round(W * d); cv.height = Math.round(H * d); }
-    g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, W, H);
+    const W = innerWidth, H = innerHeight;
+    if (cv.width !== Math.round(W * SCALE) || cv.height !== Math.round(H * SCALE)){ cv.width = Math.round(W * SCALE); cv.height = Math.round(H * SCALE); lastBeam = ''; }
     const P = window.pierPage;
     if (!P){
-      shot.style.opacity = document.documentElement.classList.contains('webgl-fallback') ? 1 : 0;
+      setOpacity(document.documentElement.classList.contains('webgl-fallback') ? 1 : 0);
       pin.classList.remove('on');
+      clearBeam();
       return;
     }
     const dr = window.drift || [0, 0], px = P[0] + dr[0] * 0.5, py = P[1] + dr[1] * 0.5;
+    const on = flown ? Math.max(0, Math.min(1, (P[2] - 0.5) / 0.3)) : 0;   // the beam comes on as the view settles into 3D
+    const r = on > 0 ? shot.getBoundingClientRect() : null;              // read layout before writing styles
     pin.style.left = `${px}px`; pin.style.top = `${py}px`;
     pin.classList.toggle('on', clock > 6.2);
-    if (!flown){ shot.style.opacity = 0; return; }
-    const on = Math.max(0, Math.min(1, (P[2] - 0.5) / 0.3));            // the beam comes on as the view settles into 3D
-    if (on <= 0){ shot.style.opacity = 0; return; }
-    const r = shot.getBoundingClientRect();
+    if (!r){ setOpacity(0); clearBeam(); return; }
     const beamOn = Math.max(0, Math.min(1, (P[2] - 0.85) / 0.15));   // the light follows once the picture is up
     const lit = beamOn;
+    // nothing has moved since the last frame: keep it
+    const key = [px, py, r.left, r.top, r.right, r.bottom, lit, W, H].map(v => Math.round(v * 4)).join();
+    setOpacity(on);
+    if (key === lastBeam) return;
+    lastBeam = key;
+    g.setTransform(SCALE, 0, 0, SCALE, 0, 0); g.clearRect(0, 0, W, H);
     // On compact screens the beam lands across the photo's bottom edge. Larger
     // screens retain the original perspective, landing on its near (right) edge.
     const compact = W <= 768;
@@ -1148,7 +1261,7 @@ void main(){
       gr.addColorStop(0, `rgba(255,250,235,${opacity * lit})`);
       gr.addColorStop(.42, `rgba(255,250,235,${opacity * .42 * lit})`);
       gr.addColorStop(1, `rgba(255,250,235,${opacity * .08 * lit})`);
-      g.filter = `blur(${blur}px)`; g.fillStyle = gr;
+      g.filter = `blur(${blur * SCALE}px)`; g.fillStyle = gr;
       g.beginPath(); g.moveTo(px, py - apexWidth); g.lineTo(...a); g.lineTo(...b); g.lineTo(px, py + apexWidth); g.closePath(); g.fill();
     };
     g.save(); g.globalCompositeOperation = 'screen';
@@ -1158,9 +1271,8 @@ void main(){
 
     const sourceGlow = g.createRadialGradient(px, py, 0, px, py, 42);
     sourceGlow.addColorStop(0, `rgba(255,250,235,${.05 * lit})`); sourceGlow.addColorStop(1, 'rgba(255,250,235,0)');
-    g.filter = 'blur(10px)'; g.fillStyle = sourceGlow; g.fillRect(px - 52, py - 52, 104, 104);
+    g.filter = `blur(${10 * SCALE}px)`; g.fillStyle = sourceGlow; g.fillRect(px - 52, py - 52, 104, 104);
     g.restore();
-    shot.style.opacity = on;
   })(0);
 })();
 
