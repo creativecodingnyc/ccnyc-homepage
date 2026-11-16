@@ -9,7 +9,7 @@ const signupEndpoint = process.env.NEXT_PUBLIC_PRESENTATION_SIGNUP_URL
 export default function HomePage() {
   return (
     <main className="home-page">
-      <button className="skip-intro" id="skipIntro" type="button">Skip intro</button>
+      <button className="skip-intro" id="skipIntro" type="button">Skip</button>
       <ProjectionStage signupEndpoint={signupEndpoint} />
       <HomeNav />
       <p className="hint" id="hint" aria-hidden="true" hidden />

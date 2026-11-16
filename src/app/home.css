@@ -201,8 +201,8 @@ ol li.next span::before{content:"Next · ";color:var(--muted)}
 :where(.panel) h2{font:inherit;margin:0 0 12px;color:inherit;letter-spacing:normal}
 /* for screen readers only */
 .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-/* the first stop for the keyboard while the intro plays; out of sight until focused */
-.skip-intro{position:fixed;left:4vh;top:3.5vh;z-index:10;padding:6px 10px;border:0;background:var(--bg);color:var(--ink);font:13px/1.6 var(--mono);cursor:pointer;
-  transform:translateY(-200%);opacity:0}
-.skip-intro:focus-visible{transform:none;opacity:1;outline:2px solid var(--ink);outline-offset:2px}
+/* visible only while the loading intro plays; home-effects hides it once the site lands */
+.skip-intro{position:fixed;right:4vh;bottom:3.5vh;z-index:10;padding:7px 13px;border:1px solid rgba(231,229,222,.55);border-radius:999px;background:rgba(17,17,17,.7);color:var(--ink);font:12px/1.6 var(--mono);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;backdrop-filter:blur(8px);transition:background-color .2s,border-color .2s}
+.skip-intro:hover{border-color:var(--ink);background:var(--bg)}
+.skip-intro:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .webgl-fallback .skip-intro{display:none}
