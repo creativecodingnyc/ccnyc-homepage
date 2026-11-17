@@ -84,6 +84,10 @@ export default function ProjectionStage({
                   </p>
                 </div>
               </div>
+              <p>
+                <strong>Wi-Fi:</strong> Hex House · <strong>Password:</strong>{" "}
+                highfive
+              </p>
               <Link className="qr-link" href="/?panel=demo-signup">
                 <span>Scan to sign up for demos</span>
                 <img
