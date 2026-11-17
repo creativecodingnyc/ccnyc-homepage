@@ -35,14 +35,32 @@ export default function HomeEffects() {
     "loading" | "ready" | "failed"
   >("loading");
   const [webGLSupported, setWebGLSupported] = useState(false);
+  const [pageVisible, setPageVisible] = useState(false);
 
   useEffect(() => {
     let disposed = false;
     let effectsInitialized = false;
-    let fallbackActivated = false;
+    let forceStatic = false;
     let cleanup: (() => void) | undefined;
     const skipController = new AbortController();
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const navigatorWithMemory = navigator as Navigator & {
+      deviceMemory?: number;
+    };
+    const lowPowerMode =
+      window.matchMedia("(max-width: 768px)").matches ||
+      (navigator.hardwareConcurrency > 0 &&
+        navigator.hardwareConcurrency <= 4) ||
+      (navigatorWithMemory.deviceMemory !== undefined &&
+        navigatorWithMemory.deviceMemory <= 4);
     const skipButton = document.getElementById("skipIntro");
+    const updatePageVisibility = () => setPageVisible(!document.hidden);
+    updatePageVisibility();
+    document.addEventListener("visibilitychange", updatePageVisibility, {
+      signal: skipController.signal,
+    });
     skipButton?.addEventListener(
       "click",
       () => {
@@ -50,7 +68,7 @@ export default function HomeEffects() {
           window.dispatchEvent(new Event("home-effects-skip"));
           return;
         }
-        fallbackActivated = true;
+        forceStatic = true;
         activateStaticHomepage();
         setWebGLSupported(false);
         setEffectsState("failed");
@@ -58,20 +76,28 @@ export default function HomeEffects() {
       { signal: skipController.signal },
     );
 
+    if (reducedMotion) {
+      forceStatic = true;
+      activateStaticHomepage();
+    }
+
     void import("@/lib/home-effects")
       .then(({ initializeHomeEffects }) => {
-        if (disposed || fallbackActivated) return;
-        const supported = supportsWebGL();
-        cleanup = initializeHomeEffects({ webGLSupported: supported });
+        if (disposed) return;
+        const supported = !forceStatic && supportsWebGL();
+        cleanup = initializeHomeEffects({
+          webGLSupported: supported,
+          lowPowerMode,
+        });
         effectsInitialized = true;
         setWebGLSupported(supported);
-        setEffectsState("ready");
+        setEffectsState(supported ? "ready" : "failed");
       })
       .catch((error: unknown) => {
         if (disposed) return;
         console.error("Could not initialize the homepage effects.", error);
         reportClientError(error, { kind: "home-effects-initialization" });
-        fallbackActivated = true;
+        forceStatic = true;
         activateStaticHomepage();
         setEffectsState("failed");
       });
@@ -83,7 +109,7 @@ export default function HomeEffects() {
     };
   }, []);
 
-  if (effectsState !== "ready" || !webGLSupported) return null;
+  if (effectsState !== "ready" || !webGLSupported || !pageVisible) return null;
 
   return (
     <Script

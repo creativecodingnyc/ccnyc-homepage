@@ -16,7 +16,6 @@ const contentSecurityPolicy = [
   "form-action 'self'",
   "frame-src 'none'",
   "frame-ancestors 'none'",
-  "upgrade-insecure-requests",
 ].join("; ");
 
 const securityHeaders = [

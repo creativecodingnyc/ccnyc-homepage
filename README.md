@@ -66,17 +66,18 @@ When the Apps Script changes later, create a new deployment version from
 
 ## Commands
 
-| Command                   | Action                                                 |
-| :------------------------ | :----------------------------------------------------- |
-| `npm run dev`             | Start the local development server                     |
-| `npm run build`           | Create an optimized Next.js production build           |
-| `npm run start`           | Run the production build locally                       |
-| `npm run lint`            | Run ESLint with zero warnings allowed                  |
-| `npm run format:check`    | Verify formatting without changing files               |
-| `npm run test:unit`       | Run deterministic date and sheet-logic tests           |
-| `npm run test:e2e`        | Run the Chromium browser tests against production      |
-| `npm run test:lighthouse` | Audit the production build with Lighthouse CI          |
-| `npm run check`           | Run formatting, lint, unit tests, and production build |
+| Command                    | Action                                                 |
+| :------------------------- | :----------------------------------------------------- |
+| `npm run dev`              | Start the local development server                     |
+| `npm run build`            | Create an optimized Next.js production build           |
+| `npm run start`            | Run the production build locally                       |
+| `npm run lint`             | Run ESLint with zero warnings allowed                  |
+| `npm run format:check`     | Verify formatting without changing files               |
+| `npm run test:unit`        | Run deterministic date and sheet-logic tests           |
+| `npm run test:e2e`         | Run Chromium and mobile WebKit browser tests           |
+| `npm run test:lighthouse`  | Audit the production build with Lighthouse CI          |
+| `npm run profile:homepage` | Record a five-minute homepage memory/CPU profile       |
+| `npm run check`            | Run formatting, lint, unit tests, and production build |
 
 Lighthouse CI audits the homepage three times using a simulated mobile device.
 It fails CI if accessibility, best-practices, or SEO scores fall below 90, or
@@ -87,3 +88,38 @@ available as a `lighthouse-reports` artifact on each GitHub Actions run.
 The audit uses Playwright's pinned Chromium build, so run
 `npx playwright install chromium` once if the browser is not already installed
 locally.
+
+## Homepage performance verification
+
+The homepage pauses its animation frames, p5 draw loop, and image rotation when
+the document is hidden. Reduced-motion visitors receive the completed static
+homepage without downloading p5. Small screens and devices reporting four or
+fewer CPU cores or 4 GB or less of memory use lower canvas density, fewer WebGL
+segments, smaller textures, and a slower image rotation.
+
+Playwright runs the complete browser suite in desktop Chromium and an iPhone 13
+WebKit profile on every push. Install both local browsers with:
+
+```sh
+npx playwright install chromium webkit
+```
+
+To record the sustained five-minute profile, run the production server in one
+terminal and the profiler in another:
+
+```sh
+npm run build
+npm run start -- --hostname 127.0.0.1 --port 4173
+npm run profile:homepage
+```
+
+The report is written to `artifacts/performance/homepage-profile.json` and lists
+console errors plus changes in heap use, DOM nodes, event listeners, and main
+thread task time. Set `PROFILE_DURATION_MS` or `PROFILE_URL` to override the
+duration or target.
+
+Before a major release, also check one physical iPhone and one older Android
+phone for a five-minute session: load and skip the intro, open each menu panel,
+background and restore the browser, rotate the device, and confirm that the
+page remains responsive without visible canvas corruption or unusual battery
+heating. Browser emulation cannot validate physical GPU drivers or thermals.

@@ -8,8 +8,13 @@ const lineup = {
 };
 
 async function waitForHomepage(page: import("@playwright/test").Page) {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   await expect(page.locator("#topbar")).toHaveClass(/on/, { timeout: 15_000 });
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-home-effects-power",
+    /low|full/,
+  );
 }
 
 test("production responses include the security policy", async ({
@@ -64,6 +69,64 @@ test("the loader can be skipped", async ({ page }) => {
   await expect(page.locator("#board")).toHaveClass(/on/);
 });
 
+test("reduced motion uses the static homepage without loading p5", async ({
+  page,
+}) => {
+  let p5Requests = 0;
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("**/vendor/p5.min.js", async (route) => {
+    p5Requests += 1;
+    await route.continue();
+  });
+  await page.goto("/");
+
+  await expect(page.locator("html")).toHaveClass(/webgl-fallback/);
+  await expect(page.locator("#board")).toHaveClass(/on/);
+  await expect(page.locator("canvas.p5Canvas")).toHaveCount(0);
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-home-effects-power",
+    /low|full/,
+  );
+  await page.getByRole("button", { name: "menu" }).click();
+  await expect(page.getByRole("link", { name: "About" })).toBeVisible();
+  expect(p5Requests).toBe(0);
+});
+
+test("homepage animation work pauses while the document is hidden", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-home-effects-paused",
+    "false",
+  );
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => true,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-home-effects-paused",
+    "true",
+  );
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => false,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-home-effects-paused",
+    "false",
+  );
+});
+
 test("menu navigation opens a shareable panel", async ({ page }) => {
   await waitForHomepage(page);
   await page.getByRole("button", { name: "menu" }).click();
@@ -75,13 +138,19 @@ test("menu navigation opens a shareable panel", async ({ page }) => {
     "false",
   );
 
-  await page.locator("#calendarNavBtn").click();
+  const calendarShortcut = page.locator("#calendarNavBtn");
+  if (await calendarShortcut.isVisible()) {
+    await calendarShortcut.click();
+  } else {
+    await page.getByRole("button", { name: "menu" }).click();
+    await page.getByRole("link", { name: "Calendar" }).click();
+  }
   await expect(page).toHaveURL(/\?panel=calendar$/);
   await expect(page.locator("#shotCalendar")).toHaveAttribute(
     "aria-hidden",
     "false",
   );
-  await expect(page.locator("#shotCalendar tbody tr").first()).toBeVisible();
+  await expect(page.locator("#shotCalendar")).toContainText("Upcoming meetups");
   await expect(
     page.getByRole("link", { name: /Open Google Calendar/ }),
   ).toBeVisible();
@@ -116,6 +185,16 @@ test("demo signup loads and submits through the public endpoint", async ({
   await expect(page.locator("#projectorSignupStatus")).toContainText(
     "0 / 10 spots",
   );
+
+  await page.getByRole("button", { name: "menu" }).click();
+  await page.getByRole("link", { name: "Demo signup" }).click();
+  await expect(page.locator("#shot")).toHaveClass(/signup/);
+  await expect(page.locator("#shotSignup")).toHaveAttribute(
+    "aria-hidden",
+    "false",
+  );
+  await expect(page.locator("#shotAgenda .qr-link")).toBeHidden();
+  await expect(page).toHaveURL(/\?panel=demo-signup$/);
 
   await page.getByLabel("Your name").fill("Ada");
   await page.getByLabel("Instagram handle, optional").fill("ada.codes");

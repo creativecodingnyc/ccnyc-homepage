@@ -6,6 +6,7 @@ coverage/
 playwright-report/
 test-results/
 .lighthouseci/
+artifacts/performance/
 next-env.d.ts
 
 # dependencies
