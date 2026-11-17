@@ -1,7 +1,5 @@
 import { newYorkDateParts, parseSheetDate } from "./meetup-dates";
-
-const SHEET_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/1FLgv60GqVtbFqyLOIWmrtPukZstIwvyJebG2LBMgVW8/export?format=csv&gid=0";
+import { PUBLIC_MEETUP_SHEET_CSV_URL } from "./endpoints";
 
 export type PublicMeetup = {
   date: string;
@@ -102,7 +100,9 @@ export function upcomingMeetupsFromCsv(
 
 export async function getUpcomingPublicMeetups(now = new Date()) {
   try {
-    const response = await fetch(SHEET_CSV_URL, { next: { revalidate: 3600 } });
+    const response = await fetch(PUBLIC_MEETUP_SHEET_CSV_URL, {
+      next: { revalidate: 3600 },
+    });
     if (!response.ok)
       throw new Error(`${response.status} ${response.statusText}`);
     return upcomingMeetupsFromCsv(await response.text(), now);

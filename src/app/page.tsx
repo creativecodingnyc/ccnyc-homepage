@@ -1,12 +1,9 @@
 import HomeEffects from "@/components/home/HomeEffects";
 import HomeNav from "@/components/home/HomeNav";
 import ProjectionStage from "@/components/home/ProjectionStage";
+import { PRESENTATION_SIGNUP_URL } from "@/lib/endpoints";
 import { getUpcomingPublicMeetups } from "@/lib/public-meetups";
 import "./home.css";
-
-const signupEndpoint =
-  process.env.NEXT_PUBLIC_PRESENTATION_SIGNUP_URL ??
-  "https://script.google.com/macros/s/AKfycbw48NKiMlbn_IHBBqVvZOriL9FI23UfyVN4iCFJ2GKWUhVjdTMZ-5TgQLX5clptPW8/exec";
 
 export default async function HomePage() {
   const meetups = await getUpcomingPublicMeetups();
@@ -15,7 +12,10 @@ export default async function HomePage() {
       <button className="skip-intro" id="skipIntro" type="button">
         Skip
       </button>
-      <ProjectionStage signupEndpoint={signupEndpoint} meetups={meetups} />
+      <ProjectionStage
+        signupEndpoint={PRESENTATION_SIGNUP_URL}
+        meetups={meetups}
+      />
       <HomeNav />
       <p className="hint" id="hint" aria-hidden="true" hidden />
       <canvas id="beam" aria-hidden="true" />

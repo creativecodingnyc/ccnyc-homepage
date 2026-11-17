@@ -12,6 +12,48 @@ async function waitForHomepage(page: import("@playwright/test").Page) {
   await expect(page.locator("#topbar")).toHaveClass(/on/, { timeout: 15_000 });
 }
 
+test("production responses include the security policy", async ({
+  request,
+}) => {
+  const response = await request.get("/");
+  expect(response.headers()["content-security-policy"]).toContain(
+    "default-src 'self'",
+  );
+  expect(response.headers()["content-security-policy"]).toContain(
+    "frame-ancestors 'none'",
+  );
+  expect(response.headers()["strict-transport-security"]).toContain(
+    "max-age=63072000",
+  );
+  expect(response.headers()["referrer-policy"]).toBe(
+    "strict-origin-when-cross-origin",
+  );
+  expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(response.headers()["x-frame-options"]).toBe("DENY");
+  expect(response.headers()["permissions-policy"]).toContain("camera=()");
+});
+
+test("health and client-error reporting endpoints respond", async ({
+  request,
+}) => {
+  const health = await request.get("/api/health");
+  expect(health.status()).toBe(200);
+  const healthBody = await health.json();
+  expect(healthBody.ok).toBe(true);
+  expect(healthBody.checks.signup.ok).toBe(true);
+  expect(healthBody.checks.calendar.ok).toBe(true);
+
+  const report = await request.post("/api/observability/client-error", {
+    data: {
+      message: "Playwright observability test",
+      name: "TestError",
+      occurredAt: new Date().toISOString(),
+      context: { kind: "automated-test" },
+    },
+  });
+  expect(report.status()).toBe(202);
+});
+
 test("the loader can be skipped", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");

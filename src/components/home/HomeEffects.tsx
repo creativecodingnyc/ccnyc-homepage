@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Script from "next/script";
+import { reportClientError } from "@/components/ClientObservability";
 import { supportsWebGL } from "@/lib/webgl-support";
 
 function activateStaticHomepage() {
@@ -69,6 +70,7 @@ export default function HomeEffects() {
       .catch((error: unknown) => {
         if (disposed) return;
         console.error("Could not initialize the homepage effects.", error);
+        reportClientError(error, { kind: "home-effects-initialization" });
         fallbackActivated = true;
         activateStaticHomepage();
         setEffectsState("failed");
@@ -89,6 +91,9 @@ export default function HomeEffects() {
       strategy="afterInteractive"
       onError={(event) => {
         console.error("Could not load p5; using the static homepage.", event);
+        reportClientError(new Error("Could not load p5"), {
+          kind: "p5-script-load",
+        });
         activateStaticHomepage();
       }}
     />

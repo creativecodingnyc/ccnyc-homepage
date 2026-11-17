@@ -1,0 +1,58 @@
+name: Production observability
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+  deployment_status:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  health:
+    if: github.event_name != 'deployment_status'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://ccnyc.space' }}
+    steps:
+      - name: Check production health
+        shell: bash
+        run: |
+          if [ -z "$PRODUCTION_URL" ]; then
+            echo "Set the PRODUCTION_URL repository variable to enable monitoring."
+            exit 1
+          fi
+          curl --fail --show-error --silent --max-time 20 "${PRODUCTION_URL%/}/api/health"
+
+      - name: Open a health alert
+        if: failure()
+        shell: bash
+        run: |
+          title="Production health check failing"
+          existing="$(gh issue list --state open --search "${title} in:title" --json number --jq '.[0].number // empty')"
+          if [ -z "$existing" ]; then
+            gh issue create --title "$title" --body "The scheduled production health check failed at $(date -u +'%Y-%m-%dT%H:%M:%SZ'). Check the workflow run and ${PRODUCTION_URL%/}/api/health."
+          fi
+
+  deployment-alert:
+    if: github.event_name == 'deployment_status' && (github.event.deployment_status.state == 'failure' || github.event.deployment_status.state == 'error')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DEPLOYMENT_ENVIRONMENT: ${{ github.event.deployment.environment }}
+      DEPLOYMENT_LOG_URL: ${{ github.event.deployment_status.log_url }}
+      DEPLOYMENT_SHA: ${{ github.event.deployment.sha }}
+    steps:
+      - name: Open a deployment alert
+        shell: bash
+        run: |
+          title="Deployment failed: ${DEPLOYMENT_ENVIRONMENT}"
+          existing="$(gh issue list --state open --search "${title} in:title" --json number --jq '.[0].number // empty')"
+          if [ -z "$existing" ]; then
+            gh issue create --title "$title" --body "Deployment ${DEPLOYMENT_SHA} failed for ${DEPLOYMENT_ENVIRONMENT}. Details: ${DEPLOYMENT_LOG_URL}"
+          fi

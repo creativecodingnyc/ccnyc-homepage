@@ -51,15 +51,39 @@ someone signs up for that date.
 When the Apps Script changes later, create a new deployment version from
 **Deploy → Manage deployments** so the live endpoint receives the update.
 
+## Production observability
+
+- `/api/health` checks the public calendar sheet and presentation-signup endpoint
+  with five-second timeouts and returns HTTP 503 when either dependency fails.
+- Browser errors and unhandled promise rejections are sent to
+  `/api/observability/client-error` with payload limits and basic rate limiting.
+- Set `OBSERVABILITY_WEBHOOK_URL` in the production environment to forward client
+  errors to a Slack-compatible or generic JSON webhook.
+- Set the GitHub repository variable `PRODUCTION_URL` to the deployed site origin,
+  such as `https://ccnyc.space`. GitHub Actions checks it every 15 minutes and
+  opens one issue when health checks fail.
+- Failed GitHub deployment-status events also open a deployment alert issue.
+
 ## Commands
 
-| Command                | Action                                                 |
-| :--------------------- | :----------------------------------------------------- |
-| `npm run dev`          | Start the local development server                     |
-| `npm run build`        | Create an optimized Next.js production build           |
-| `npm run start`        | Run the production build locally                       |
-| `npm run lint`         | Run ESLint with zero warnings allowed                  |
-| `npm run format:check` | Verify formatting without changing files               |
-| `npm run test:unit`    | Run deterministic date and sheet-logic tests           |
-| `npm run test:e2e`     | Run the Chromium browser tests against production      |
-| `npm run check`        | Run formatting, lint, unit tests, and production build |
+| Command                   | Action                                                 |
+| :------------------------ | :----------------------------------------------------- |
+| `npm run dev`             | Start the local development server                     |
+| `npm run build`           | Create an optimized Next.js production build           |
+| `npm run start`           | Run the production build locally                       |
+| `npm run lint`            | Run ESLint with zero warnings allowed                  |
+| `npm run format:check`    | Verify formatting without changing files               |
+| `npm run test:unit`       | Run deterministic date and sheet-logic tests           |
+| `npm run test:e2e`        | Run the Chromium browser tests against production      |
+| `npm run test:lighthouse` | Audit the production build with Lighthouse CI          |
+| `npm run check`           | Run formatting, lint, unit tests, and production build |
+
+Lighthouse CI audits the homepage three times using a simulated mobile device.
+It fails CI if accessibility, best-practices, or SEO scores fall below 90, or
+if cumulative layout shift exceeds 0.1. Performance scores below 70 and largest
+contentful paint above four seconds are reported as warnings because those
+measurements can vary between CI runners. The full HTML and JSON reports are
+available as a `lighthouse-reports` artifact on each GitHub Actions run.
+The audit uses Playwright's pinned Chromium build, so run
+`npx playwright install chromium` once if the browser is not already installed
+locally.
