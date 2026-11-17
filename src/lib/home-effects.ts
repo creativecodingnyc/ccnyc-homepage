@@ -8,8 +8,62 @@ let initialized = false;
 type HomeEffectsOptions = { webGLSupported: boolean };
 
 export function initializeHomeEffects({ webGLSupported }: HomeEffectsOptions) {
-if (initialized || typeof window === 'undefined') return;
+if (initialized || typeof window === 'undefined') return () => {};
 initialized = true;
+
+const controller = new AbortController();
+const frameIds = new Set<number>();
+const timeoutIds = new Set<number>();
+const intervalIds = new Set<number>();
+const observers = new Set<MutationObserver>();
+let disposed = false;
+const listen = (target, type, listener, options = {}) => {
+  target.addEventListener(type, listener, { ...options, signal: controller.signal });
+};
+const nextFrame = callback => {
+  if (disposed) return 0;
+  const id = requestAnimationFrame(time => {
+    frameIds.delete(id);
+    if (!disposed) callback(time);
+  });
+  frameIds.add(id);
+  return id;
+};
+const later = (callback, delay) => {
+  const id = window.setTimeout(() => {
+    timeoutIds.delete(id);
+    if (!disposed) callback();
+  }, delay);
+  timeoutIds.add(id);
+  return id;
+};
+const repeat = (callback, delay) => {
+  const id = window.setInterval(() => { if (!disposed) callback(); }, delay);
+  intervalIds.add(id);
+  return id;
+};
+const watch = (target, callback, options) => {
+  const observer = new MutationObserver(callback);
+  observer.observe(target, options);
+  observers.add(observer);
+  return observer;
+};
+const fetchWithTimeout = async (input, init = {}, timeoutMs = 10000) => {
+  const requestController = new AbortController();
+  const cancelForCleanup = () => requestController.abort(controller.signal.reason);
+  if (controller.signal.aborted) cancelForCleanup();
+  else controller.signal.addEventListener('abort', cancelForCleanup, { once: true });
+  const timeoutId = later(() => {
+    requestController.abort(new DOMException('The request timed out.', 'TimeoutError'));
+  }, timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: requestController.signal });
+  } finally {
+    clearTimeout(timeoutId);
+    timeoutIds.delete(timeoutId);
+    controller.signal.removeEventListener('abort', cancelForCleanup);
+  }
+};
 
 // LOADING fills from grey to white, twists over to CCNYC; CCNYC goes through a
 // grid of lenses until one CCNYC is left, which grows near the top. Plays once, ~10s.
@@ -160,9 +214,9 @@ const hideSkip = () => {
   if (!skipBtn || skipBtn.hidden) return;
   const hadFocus = document.activeElement === skipBtn;
   skipBtn.hidden = true;
-  if (hadFocus) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('menuBtn')?.focus()));
+  if (hadFocus) nextFrame(() => nextFrame(() => document.getElementById('menuBtn')?.focus()));
 };
-skipBtn?.addEventListener('click', () => { t = END; clock = Math.max(clock, SETTLED); });
+listen(window, 'home-effects-skip', () => { t = END; clock = Math.max(clock, SETTLED); });
 
 const activateStaticFallback = () => {
   if (document.documentElement.classList.contains('webgl-fallback')) return;
@@ -179,7 +233,7 @@ const activateStaticFallback = () => {
   const shot = document.getElementById('shot');
   if (shot) shot.style.opacity = '1';
 };
-addEventListener('home-effects-fallback', activateStaticFallback, { once: true });
+listen(window, 'home-effects-fallback', activateStaticFallback, { once: true });
 
 const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
 const clamp01 = x => Math.min(1, Math.max(0, x));
@@ -399,12 +453,12 @@ function lensAt(){
 
 
 // Contact: opens the mail app where it can, and always shows the address to copy
-document.getElementById('contact').addEventListener('click', () => { document.getElementById('mail').hidden = false; });
-document.getElementById('copy').addEventListener('click', async e => {
+listen(document.getElementById('contact'), 'click', () => { document.getElementById('mail').hidden = false; });
+listen(document.getElementById('copy'), 'click', async e => {
   const btn = e.currentTarget, addr = document.getElementById('addr');
   try { await navigator.clipboard.writeText(addr.textContent); btn.textContent = 'copied'; }
   catch { const r = document.createRange(); r.selectNodeContents(addr); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); btn.textContent = 'selected'; }
-  setTimeout(() => { btn.textContent = 'copy'; }, 1600);
+  later(() => { btn.textContent = 'copy'; }, 1600);
 });
 
 // Photos. Put your own image URLs here; anything that fails to load (the claude.ai
@@ -473,7 +527,7 @@ function standIn(seed){
 }
 
 // The page is a single screen: keep it from being nudged sideways
-(() => { const board = document.getElementById('board'); board.addEventListener('scroll', () => { board.scrollLeft = 0; board.scrollTop = 0; }, { passive: true }); })();
+(() => { const board = document.getElementById('board'); listen(board, 'scroll', () => { board.scrollLeft = 0; board.scrollTop = 0; }, { passive: true }); })();
 
 // Pier 57, sketched: a wireframe model drawn in slightly wobbly lines that re-draw
 // a few times a second, slowly turning, with a GIS-style ground grid, north arrow
@@ -520,7 +574,7 @@ function standIn(seed){
 
   let shown = false, last = 0;
   function frame(now){
-    requestAnimationFrame(frame);
+    nextFrame(frame);
     if (!document.getElementById('board').classList.contains('on')) return;
     if (!cv.clientWidth) return;                  // the sketch is hidden for now: draw nothing
     if (now - last < 110) return;                 // boil the lines at ~9 fps, like a sketch
@@ -565,23 +619,23 @@ function standIn(seed){
     g.fillText('200 ft', s1[0] + 6, s1[1] + 3);
     if (!shown){ shown = true; cv.classList.add('drawn'); }
   }
-  requestAnimationFrame(frame);
+  nextFrame(frame);
 })();
 
 // The whole page drifts with the cursor, like one canvas seen through the window:
 // move toward an edge and the canvas slides to show more of that side.
 (() => {
   let tx = 0, ty = 0, x = 0, y = 0;
-  addEventListener('pointermove', e => {
+  listen(window, 'pointermove', e => {
     if (e.pointerType !== 'mouse') return;
     tx = -(e.clientX / innerWidth - 0.5) * innerWidth * 0.12;
     ty = -(e.clientY / innerHeight - 0.5) * innerHeight * 0.12;
   });
-  document.addEventListener('pointerleave', () => { tx = ty = 0; });
+  listen(document, 'pointerleave', () => { tx = ty = 0; });
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   let els = null;
   (function step(){
-    requestAnimationFrame(step);
+    nextFrame(step);
     if (!flown || reduce.matches) return;
     if (Math.abs(tx - x) < 0.05 && Math.abs(ty - y) < 0.05) return;   // at rest: nothing to move
     x += (tx - x) * 0.06; y += (ty - y) * 0.06;
@@ -602,7 +656,7 @@ function standIn(seed){
   document.body.prepend(cv);
   const gl = cv.getContext('webgl', { antialias: false, premultipliedAlpha: false });
   if (!gl) { cv.remove(); activateStaticFallback(); return; }
-  cv.addEventListener('webglcontextlost', event => {
+  listen(cv, 'webglcontextlost', event => {
     event.preventDefault();
     activateStaticFallback();
   }, { once: true });
@@ -901,7 +955,7 @@ void main(){
 
   // ---- the cursor wets the paper, which dries slowly
   let mx = -1, my = -1, px = -1, py = -1, moved = -Infinity, wetDirty = true;
-  addEventListener('pointermove', e => { mx = e.clientX; my = e.clientY; moved = performance.now(); });
+  listen(window, 'pointermove', e => { mx = e.clientX; my = e.clientY; moved = performance.now(); });
   function dab(){
     tg.globalCompositeOperation = 'destination-out'; tg.fillStyle = 'rgba(0,0,0,0.012)'; tg.fillRect(0, 0, T.width, T.height);
     if (mx < 0) return;
@@ -945,9 +999,9 @@ void main(){
   // the ground is drawn once its lettering has loaded; it is not on screen before ~6s anyway
   let grounded = false;
   const ground = () => { grounded = true; drawGround(); };
-  const late = setTimeout(ground, 2500);
-  document.fonts.load('italic 20px "Cormorant Garamond"').then(() => { clearTimeout(late); ground(); }, () => { if (!grounded) ground(); });
-  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(resize, 150); });
+  const late = later(ground, 2500);
+  document.fonts.load('italic 20px "Cormorant Garamond"').then(() => { clearTimeout(late); timeoutIds.delete(late); if (!disposed) ground(); }, () => { if (!disposed && !grounded) ground(); });
+  let rt; listen(window, 'resize', () => { clearTimeout(rt); timeoutIds.delete(rt); rt = later(resize, 150); });
 
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const locs = {}, U = name => locs[name] ??= gl.getUniformLocation(compP, name);
@@ -955,7 +1009,7 @@ void main(){
   // a device that cannot keep up at high density drops to one pixel per CSS pixel, once
   const gaps = []; let prev = 0;
   (function frame(now){
-    requestAnimationFrame(frame);
+    nextFrame(frame);
     if (d > 1 && clock > SETTLED && gaps.length < 120){
       if (prev) gaps.push(now - prev);
       if (gaps.length === 120 && gaps.sort((a, b) => a - b)[60] > 24){ d = 1; resize(); }
@@ -1004,47 +1058,31 @@ void main(){
   const pairs = [['menuBtn', 'menuPanel']].map(([b, p]) => [document.getElementById(b), document.getElementById(p)]);
   const set = (which, open) => pairs.forEach(([b, p]) => { const o = b === which && open; p.hidden = !o; b.setAttribute('aria-expanded', o); });
   pairs.forEach(([b, p]) => {
-    b.addEventListener('click', e => { e.stopPropagation(); p.style.left = (innerWidth < 600 ? 0 : b.offsetLeft) + 'px'; set(b, p.hidden); });
-    p.addEventListener('click', e => e.stopPropagation());
+    listen(b, 'click', e => { e.stopPropagation(); p.style.left = (innerWidth < 600 ? 0 : b.offsetLeft) + 'px'; set(b, p.hidden); });
+    listen(p, 'click', e => e.stopPropagation());
   });
   const shot = document.getElementById('shot');
-  const calendar = document.createElement('div');
-  calendar.className = 'panel calendar-panel'; calendar.id = 'shotCalendar'; calendar.setAttribute('aria-hidden', 'true');
-  calendar.setAttribute('aria-labelledby', 'calendarTitle'); calendar.inert = true; calendar.tabIndex = 0;
-  const MEETUPS = [
-    ['10/13/26', 'Brooklyn Public Library Central Library, Info Commons lab'],
-    ['10/20/26', 'TBD'],
-    ['10/27/26', 'Pier 57, Daffodil classroom'],
-    ['11/3/26', 'TBD'],
-    ['11/10/26', 'Pier 57, Oyster classroom'],
-    ['11/17/26', 'TBD'],
-    ['11/24/26', 'Pier 57, Oyster classroom'],
-    ['12/1/26', 'TBD'],
-    ['12/8/26', 'Pier 57, Seahorse classroom'],
-    ['12/15/26', 'TBD'],
-    ['12/22/26', 'Pier 57, Seahorse classroom'],
-    ['12/29/26', 'Pier 57, Seahorse classroom'],
-    ['1/5/27', 'Pier 57, Seahorse classroom'],
-    ['1/12/27', 'Pier 57, Seahorse classroom'],
-    ['1/19/27', 'Pier 57, Oyster classroom'],
-    ['1/26/27', 'Pier 57, Oyster classroom'],
-    ['2/2/27', 'Pier 57, Seahorse classroom'],
-    ['2/9/27', 'Pier 57, Seahorse classroom'],
-    ['2/16/27', 'Pier 57, Oyster classroom'],
-    ['2/23/27', 'Pier 57, Seahorse classroom']
-  ];
-  const iso = date => { const [m, d, y] = date.split('/'); return `20${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`; };
-  calendar.innerHTML = `<h2 class="calendar-title" id="calendarTitle">Upcoming meetups</h2><table class="calendar-table" aria-labelledby="calendarTitle"><thead><tr><th scope="col">Date</th><th scope="col">What</th><th scope="col">Time</th><th scope="col">Location</th></tr></thead><tbody>
-    ${MEETUPS.map(([date, place]) => `<tr><td><time datetime="${iso(date)}">${date}</time></td><td>CCNYC meetup</td><td>6–8 PM</td><td>${place}</td></tr>`).join('\n    ')}
-  </tbody></table><a href="https://calendar.google.com/calendar/u/0/newembed?src=af7c6ae752c79810e8eb38e75cdf47faed42d35a9a68372067572cad4a6ec400@group.calendar.google.com" target="_blank" rel="noopener">Open Google Calendar <span aria-hidden="true">↗</span><span class="sr-only">(opens in a new tab)</span></a>`;
-  shot.append(calendar);
+  const calendar = document.getElementById('shotCalendar');
   const info = document.getElementById('shotInfo'), agenda = document.getElementById('shotAgenda'), signup = document.getElementById('shotSignup');
   const infoBtn = document.getElementById('infoBtn'), agendaBtn = document.getElementById('agendaBtn'), signupBtn = document.getElementById('signupBtn'), calendarBtn = document.getElementById('calendarBtn'), calendarNavBtn = document.getElementById('calendarNavBtn');
   const lineup = document.getElementById('projectorLineup'), signupStatus = document.getElementById('projectorSignupStatus');
   const signupForm = document.getElementById('signupForm') as HTMLFormElement;
-  const signupName = signupForm.elements.name, signupInstagram = signupForm.elements.instagram, signupPassword = signupForm.elements.password, signupSubmit = signupForm.querySelector('button');
+  const signupName = signupForm.elements.name, signupInstagram = signupForm.elements.instagram, signupPassword = signupForm.elements.password, signupShareInstagram = signupForm.elements.shareInstagram, signupInstagramConsent = signupForm.elements.instagramConsent, signupWebsite = signupForm.elements.website, signupSubmit = signupForm.querySelector('button');
   const capacity = 10;
   let signupLoading = false;
+  const signupClientId = (() => {
+    const storageKey = 'ccnyc-signup-client';
+    try {
+      const existing = localStorage.getItem(storageKey);
+      if (existing && /^[A-Za-z0-9_-]{16,80}$/.test(existing)) return existing;
+      const created = crypto.randomUUID().replace(/-/g, '');
+      localStorage.setItem(storageKey, created);
+      return created;
+    } catch {
+      const random = crypto.getRandomValues(new Uint32Array(4));
+      return Array.from(random, value => value.toString(36).padStart(7, '0')).join('');
+    }
+  })();
 
   const meetingTuesday = () => {
     const parts = new Intl.DateTimeFormat('en-US', { timeZone:'America/New_York', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date());
@@ -1084,7 +1122,7 @@ void main(){
     }
     const full = presenters.length >= capacity;
     const closed = !isTuesday();
-    signupName.disabled = full || closed; signupInstagram.disabled = full || closed; signupPassword.disabled = full || closed; signupSubmit.disabled = full || closed;
+    signupName.disabled = full || closed; signupInstagram.disabled = full || closed; signupPassword.disabled = full || closed; signupShareInstagram.disabled = full || closed; signupInstagramConsent.disabled = full || closed; signupSubmit.disabled = full || closed;
   };
   const loadLineup = async () => {
     if (signupLoading) return;
@@ -1094,40 +1132,51 @@ void main(){
     signupStatus.textContent = `${readableDate} · loading…`;
     try {
       const query = new URLSearchParams({ action:'list', date:requestedDate, t:String(Date.now()) });
-      const response = await fetch(`${signup.dataset.signupEndpoint}?${query}`);
+      const response = await fetchWithTimeout(`${signup.dataset.signupEndpoint}?${query}`);
       if (!response.ok) throw new Error('Could not load signups');
       const data = await response.json();
       const responseDate = data.meetingDate || data.date;
       const presenters = responseDate === requestedDate ? presentersFrom(data).slice(0, capacity) : [];
       renderLineup(presenters);
       signupStatus.textContent = isTuesday() ? `${readableDate} · ${presenters.length} / ${capacity} spots` : 'Demo signup opens Tuesday';
-    } catch {
-      signupStatus.textContent = `${readableDate} · lineup unavailable`;
+    } catch (error) {
+      if (disposed) return;
+      signupStatus.textContent = error instanceof DOMException && error.name === 'TimeoutError'
+        ? `${readableDate} · request timed out`
+        : `${readableDate} · lineup unavailable`;
     } finally {
       signupLoading = false;
     }
   };
-  signupForm.addEventListener('submit', async event => {
+  listen(signupForm, 'submit', async event => {
     event.preventDefault();
     const name = signupName.value.trim();
     const instagram = signupInstagram.value.trim().replace(/^@/, '');
     const password = signupPassword.value;
     if (!name || !password) return;
     if (!isTuesday()) { signupStatus.textContent = 'Demo signup is only available on Tuesdays.'; return; }
-    signupName.disabled = true; signupInstagram.disabled = true; signupPassword.disabled = true; signupSubmit.disabled = true;
+    signupName.disabled = true; signupInstagram.disabled = true; signupPassword.disabled = true; signupShareInstagram.disabled = true; signupInstagramConsent.disabled = true; signupSubmit.disabled = true;
     signupStatus.textContent = 'Saving your spot…';
+    let saved = false;
     try {
-      const body = new URLSearchParams({ action:'signup', name, instagram, password });
-      const response = await fetch(signup.dataset.signupEndpoint, { method:'POST', body });
+      const body = new URLSearchParams({ action:'signup', name, instagram, password, shareInstagram:String(signupShareInstagram.checked), instagramConsent:String(signupInstagramConsent.checked), website:signupWebsite.value, clientId:signupClientId });
+      const response = await fetchWithTimeout(signup.dataset.signupEndpoint, { method:'POST', body });
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || 'Could not save signup');
       const presenters = presentersFrom(data).slice(0, capacity);
       renderLineup(presenters);
       signupForm.reset();
+      saved = true;
       signupStatus.textContent = `You’re signed up, ${name}! · ${presenters.length} / ${capacity} spots`;
     } catch (error) {
-      signupStatus.textContent = error instanceof Error ? error.message : 'Could not save your spot. Please try again.';
-      signupName.disabled = false; signupInstagram.disabled = false; signupPassword.disabled = false; signupSubmit.disabled = false;
+      if (disposed) return;
+      signupStatus.textContent = error instanceof DOMException && error.name === 'TimeoutError'
+        ? 'Signup timed out. Please try again.'
+        : error instanceof Error ? error.message : 'Could not save your spot. Please try again.';
+    } finally {
+      if (!disposed && !saved) {
+        signupName.disabled = false; signupInstagram.disabled = false; signupPassword.disabled = false; signupShareInstagram.disabled = false; signupInstagramConsent.disabled = false; signupSubmit.disabled = false;
+      }
     }
   });
   renderLineup([]);
@@ -1157,11 +1206,11 @@ void main(){
       history.pushState({ panel: panelName(mode) }, '', `${url.pathname}${url.search}`);
     }
   };
-  infoBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('about') ? null : 'about', true, true); });
-  agendaBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('agenda') ? null : 'agenda', true, true); });
-  signupBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('signup') ? null : 'signup', true, true); });
-  calendarBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('calendar') ? null : 'calendar', true, true); });
-  calendarNavBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('calendar') ? null : 'calendar', true, true); });
+  listen(infoBtn, 'click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('about') ? null : 'about', true, true); });
+  listen(agendaBtn, 'click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('agenda') ? null : 'agenda', true, true); });
+  listen(signupBtn, 'click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('signup') ? null : 'signup', true, true); });
+  listen(calendarBtn, 'click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('calendar') ? null : 'calendar', true, true); });
+  listen(calendarNavBtn, 'click', e => { e.preventDefault(); e.stopPropagation(); showPanel(shot.classList.contains('calendar') ? null : 'calendar', true, true); });
   const showPanelFromLocation = () => {
     const requestedPanel = new URLSearchParams(location.search).get('panel');
     const mode = ({
@@ -1177,19 +1226,18 @@ void main(){
     }[location.hash];
     showPanel(mode || null, false);
   };
-  addEventListener('hashchange', showPanelFromLocation);
-  addEventListener('popstate', showPanelFromLocation);
+  listen(window, 'hashchange', showPanelFromLocation);
+  listen(window, 'popstate', showPanelFromLocation);
   showPanelFromLocation();
-  addEventListener('click', () => set(null, false));
-  addEventListener('keydown', e => {
+  listen(window, 'click', () => set(null, false));
+  listen(window, 'keydown', e => {
     if (e.key !== 'Escape') return;
     const menu = document.getElementById('menuPanel');
     const inMenu = menu.contains(document.activeElement);
     set(null, false);
     if (inMenu) document.getElementById('menuBtn').focus();   // focus would otherwise be lost with the menu
   });
-  new MutationObserver(() => bar.classList.toggle('on', document.getElementById('board').classList.contains('on')))
-    .observe(document.getElementById('board'), { attributes: true, attributeFilter: ['class'] });
+  watch(document.getElementById('board'), () => bar.classList.toggle('on', document.getElementById('board').classList.contains('on')), { attributes: true, attributeFilter: ['class'] });
 })();
 
 // Pier 57 as a projector: a beam from the pier to the picture, which steps through a few photos
@@ -1202,7 +1250,7 @@ void main(){
   };
   let n = 0, current = imgs[0];
   imgs[0].src = srcs[0]; imgs[0].classList.add('on');
-  setInterval(() => {
+  repeat(() => {
     if (REDUCED || !flown || shot.classList.contains('about') || shot.classList.contains('agenda') || shot.classList.contains('signup') || shot.classList.contains('calendar')) return;
     n = (n + 1) % srcs.length;
     const next = current === imgs[0] ? imgs[1] : imgs[0];
@@ -1217,7 +1265,7 @@ void main(){
   const setOpacity = o => { const v = String(o); if (v !== opacity){ opacity = v; shot.style.opacity = v; } };
   const clearBeam = () => { if (lastBeam){ g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); lastBeam = ''; } };
   (function frame(){
-    requestAnimationFrame(frame);
+    nextFrame(frame);
     const W = innerWidth, H = innerHeight;
     if (cv.width !== Math.round(W * SCALE) || cv.height !== Math.round(H * SCALE)){ cv.width = Math.round(W * SCALE); cv.height = Math.round(H * SCALE); lastBeam = ''; }
     const P = window.pierPage;
@@ -1278,11 +1326,38 @@ void main(){
 
 if (webGLSupported) {
   Object.assign(window, { setup, draw, windowResized });
-  addEventListener('webglcontextlost', event => {
+  // On a client-side return visit the p5 script is already loaded, so its
+  // automatic first-load bootstrap will not run again.
+  if (window.p5 && !document.querySelector('canvas.p5Canvas')) new window.p5();
+  listen(window, 'webglcontextlost', event => {
     event.preventDefault();
     activateStaticFallback();
   }, { capture: true, once: true });
 } else {
   activateStaticFallback();
 }
+
+return () => {
+  if (disposed) return;
+  disposed = true;
+  controller.abort();
+  frameIds.forEach(cancelAnimationFrame);
+  timeoutIds.forEach(clearTimeout);
+  intervalIds.forEach(clearInterval);
+  observers.forEach(observer => observer.disconnect());
+  frameIds.clear(); timeoutIds.clear(); intervalIds.clear(); observers.clear();
+
+  // p5 owns its own animation loop and WebGL context. Its global-mode remove
+  // function releases both; the explicit node cleanup also covers a partial load.
+  const p5Canvas = document.querySelector('canvas.p5Canvas');
+  if (p5Canvas && typeof window.remove === 'function') window.remove();
+  document.getElementById('map')?.remove();
+  p5Canvas?.remove();
+  document.documentElement.classList.remove('webgl-fallback');
+
+  for (const key of ['setup', 'draw', 'windowResized', 'lensState', 'pierPage', 'drift']) {
+    try { delete window[key]; } catch { window[key] = undefined; }
+  }
+  initialized = false;
+};
 }

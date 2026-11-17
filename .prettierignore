@@ -1,0 +1,14 @@
+.next
+coverage
+node_modules
+out
+package-lock.json
+playwright-report
+test-results
+public/vendor
+public/photos
+src/app/*.css
+src/app/**/*.css
+src/components/**/*.css
+src/lib/home-effects.ts
+google-apps-script

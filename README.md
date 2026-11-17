@@ -21,6 +21,11 @@ meetup. The current list remains visible through Monday and automatically
 resets when the following Tuesday begins; older rows remain in the sheet as
 history.
 
+Presenters choose whether their Instagram handle appears in the public lineup.
+They can separately give CCNYC permission to post their demo on Instagram; that
+preference is stored only in the private sheet and is never returned by the
+public lineup endpoint.
+
 The panel explicitly requests the most recent Tuesday in New York time. On
 Tuesday, that means the new Tuesday's list starts empty and remains empty until
 someone signs up for that date.
@@ -48,8 +53,13 @@ When the Apps Script changes later, create a new deployment version from
 
 ## Commands
 
-| Command | Action |
-| :-- | :-- |
-| `npm run dev` | Start the local development server |
-| `npm run build` | Create an optimized Next.js production build |
-| `npm run start` | Run the production build locally |
+| Command                | Action                                                 |
+| :--------------------- | :----------------------------------------------------- |
+| `npm run dev`          | Start the local development server                     |
+| `npm run build`        | Create an optimized Next.js production build           |
+| `npm run start`        | Run the production build locally                       |
+| `npm run lint`         | Run ESLint with zero warnings allowed                  |
+| `npm run format:check` | Verify formatting without changing files               |
+| `npm run test:unit`    | Run deterministic date and sheet-logic tests           |
+| `npm run test:e2e`     | Run the Chromium browser tests against production      |
+| `npm run check`        | Run formatting, lint, unit tests, and production build |

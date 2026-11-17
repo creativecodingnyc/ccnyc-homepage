@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import HomeNav from "@/components/HomeNav";
 import ControlsPanel from "./ControlsPanel";
 import PosterPreview from "./PosterPreview";
@@ -12,7 +13,10 @@ type PosterBuilderProps = {
   initialLocation: string;
 };
 
-export default function PosterBuilder({ initialDate, initialLocation }: PosterBuilderProps) {
+export default function PosterBuilder({
+  initialDate,
+  initialLocation,
+}: PosterBuilderProps) {
   const [poster, setPoster] = useState<PosterData>({
     title: "CCNYC",
     titleX: 50,
@@ -34,12 +38,19 @@ export default function PosterBuilder({ initialDate, initialLocation }: PosterBu
     shader: "none",
   });
 
-  const updatePoster = <Key extends keyof PosterData>(key: Key, value: PosterData[Key]) => {
-    setPoster(current => ({ ...current, [key]: value }));
+  const updatePoster = <Key extends keyof PosterData>(
+    key: Key,
+    value: PosterData[Key],
+  ) => {
+    setPoster((current) => ({ ...current, [key]: value }));
   };
 
-  const moveContent = (key: "title" | "date" | "location" | "time", x: number, y: number) => {
-    setPoster(current => ({
+  const moveContent = (
+    key: "title" | "date" | "location" | "time",
+    x: number,
+    y: number,
+  ) => {
+    setPoster((current) => ({
       ...current,
       [`${key}X`]: x,
       [`${key}Y`]: y,
@@ -50,7 +61,7 @@ export default function PosterBuilder({ initialDate, initialLocation }: PosterBu
     <main className={styles.page}>
       <HomeNav />
       <header className={styles.header}>
-        <a href="/">CCNYC</a>
+        <Link href="/">CCNYC</Link>
       </header>
 
       <div className={styles.workspace}>

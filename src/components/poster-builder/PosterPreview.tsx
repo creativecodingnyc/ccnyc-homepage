@@ -9,7 +9,8 @@ type PosterPreviewProps = {
 
 type ContentKey = "title" | "date" | "location" | "time";
 
-const snap = (value: number) => Math.max(0, Math.min(100, Math.round(value / 5) * 5));
+const snap = (value: number) =>
+  Math.max(0, Math.min(100, Math.round(value / 5) * 5));
 
 export default function PosterPreview({ poster, onMove }: PosterPreviewProps) {
   const fontFamilies = {
@@ -47,8 +48,18 @@ export default function PosterPreview({ poster, onMove }: PosterPreviewProps) {
     window.addEventListener("pointerup", stop, { once: true });
   };
 
-  const nudge = (key: ContentKey, x: number, y: number, event: KeyboardEvent<HTMLElement>) => {
-    const movement = { ArrowLeft: [-5, 0], ArrowRight: [5, 0], ArrowUp: [0, -5], ArrowDown: [0, 5] }[event.key];
+  const nudge = (
+    key: ContentKey,
+    x: number,
+    y: number,
+    event: KeyboardEvent<HTMLElement>,
+  ) => {
+    const movement = {
+      ArrowLeft: [-5, 0],
+      ArrowRight: [5, 0],
+      ArrowUp: [0, -5],
+      ArrowDown: [0, 5],
+    }[event.key];
     if (!movement) return;
     event.preventDefault();
     onMove(key, snap(x + movement[0]), snap(y + movement[1]));
@@ -56,11 +67,55 @@ export default function PosterPreview({ poster, onMove }: PosterPreviewProps) {
 
   return (
     <section className={styles.preview} aria-label="Poster preview">
-      <article className={styles.poster} style={posterStyle} data-shader={poster.shader}>
-        <h2 className={styles.movable} style={position(poster.titleX, poster.titleY)} tabIndex={0} onPointerDown={event => startDrag("title", event)} onKeyDown={event => nudge("title", poster.titleX, poster.titleY, event)}>{poster.title || "Untitled poster"}</h2>
-        <p className={`${styles.detail} ${styles.movable}`} style={position(poster.dateX, poster.dateY)} tabIndex={0} onPointerDown={event => startDrag("date", event)} onKeyDown={event => nudge("date", poster.dateX, poster.dateY, event)}>{poster.date}</p>
-        <p className={`${styles.detail} ${styles.movable}`} style={position(poster.locationX, poster.locationY)} tabIndex={0} onPointerDown={event => startDrag("location", event)} onKeyDown={event => nudge("location", poster.locationX, poster.locationY, event)}>{poster.location}</p>
-        <p className={`${styles.detail} ${styles.movable}`} style={position(poster.timeX, poster.timeY)} tabIndex={0} onPointerDown={event => startDrag("time", event)} onKeyDown={event => nudge("time", poster.timeX, poster.timeY, event)}>{poster.time}</p>
+      <article
+        className={styles.poster}
+        style={posterStyle}
+        data-shader={poster.shader}
+      >
+        <h2
+          className={styles.movable}
+          style={position(poster.titleX, poster.titleY)}
+          tabIndex={0}
+          onPointerDown={(event) => startDrag("title", event)}
+          onKeyDown={(event) =>
+            nudge("title", poster.titleX, poster.titleY, event)
+          }
+        >
+          {poster.title || "Untitled poster"}
+        </h2>
+        <p
+          className={`${styles.detail} ${styles.movable}`}
+          style={position(poster.dateX, poster.dateY)}
+          tabIndex={0}
+          onPointerDown={(event) => startDrag("date", event)}
+          onKeyDown={(event) =>
+            nudge("date", poster.dateX, poster.dateY, event)
+          }
+        >
+          {poster.date}
+        </p>
+        <p
+          className={`${styles.detail} ${styles.movable}`}
+          style={position(poster.locationX, poster.locationY)}
+          tabIndex={0}
+          onPointerDown={(event) => startDrag("location", event)}
+          onKeyDown={(event) =>
+            nudge("location", poster.locationX, poster.locationY, event)
+          }
+        >
+          {poster.location}
+        </p>
+        <p
+          className={`${styles.detail} ${styles.movable}`}
+          style={position(poster.timeX, poster.timeY)}
+          tabIndex={0}
+          onPointerDown={(event) => startDrag("time", event)}
+          onKeyDown={(event) =>
+            nudge("time", poster.timeX, poster.timeY, event)
+          }
+        >
+          {poster.time}
+        </p>
       </article>
     </section>
   );
